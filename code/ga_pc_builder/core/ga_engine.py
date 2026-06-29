@@ -104,13 +104,43 @@ class GARecommender:
     def _pick_cooling(self) -> str:
         if self.cooling_prefer in ("風冷", "水冷"):
             return self.cooling_prefer
-        return random.choice(COOLING_CATS)
+        # auto 模式：依預算分級決定風冷/水冷機率
+        # 低預算水冷會吃掉預算導致失衡，故大幅偏向風冷；
+        # 高預算則維持公平競爭，讓 GA 自由選擇。
+        if self.budget <= 25000:
+            water_prob = 0.10      # 低預算：90% 風冷
+        elif self.budget <= 40000:
+            water_prob = 0.30      # 中預算：70% 風冷
+        else:
+            water_prob = 0.50      # 高預算：50/50 公平競爭
+        return "水冷" if random.random() < water_prob else "風冷"
 
     def _init_population(self) -> list[Build]:
         return [self._random_build() for _ in range(self.pop_size)]
 
     def fitness(self, build: Build) -> float:
         w = self.weights
+
+        # 硬約束：嚴重超支（>20%）直接判定為極差解，不再計算其他加分
+        # 避免高效能加分蓋過預算懲罰，導致 11 萬配置出現在 2 萬預算
+        if build.total_price > self.budget * 1.20:
+            over_ratio = (build.total_price - self.budget) / self.budget
+            return -10.0 - over_ratio   # 越超支排越後面
+
+        # 硬約束：散熱壓不住 CPU（會降頻、噪音、壽命問題）
+        # 用實際功耗對比推斷壓制力，壓不住直接淘汰
+        cpu_part = build.parts.get("CPU")
+        cooler_part = build.parts.get("風冷") or build.parts.get("水冷")
+        if cpu_part and cooler_part:
+            from data.cpu_power import get_actual_power
+            from data.cooler_capacity import estimate_cooler_capacity
+            nominal = float(cpu_part.specs.get("tdp", 0) or 0)
+            cpu_pwr = get_actual_power(cpu_part.name, fallback_tdp=nominal or 65)
+            cool_cap = estimate_cooler_capacity(cooler_part.name, cooler_part.specs)
+            if cpu_pwr > cool_cap:
+                # 壓不住：硬約束淘汰，差距越大排越後
+                return -5.0 - (cpu_pwr - cool_cap) / 100
+
         perf     = self._perf_score(build)
         sent     = self._sentiment_score(build)
         cp       = self._cp_score(build)
@@ -186,8 +216,16 @@ class GARecommender:
 
         #  預算偏緊時偏向風冷 
         water = build.parts.get("水冷")
-        if water and build.total_price > self.budget * 0.85:
-            score -= 0.05
+        if water:
+            # 低預算（≤25000）配水冷本身就不合理：水冷吃預算導致整機失衡
+            if self.budget <= 25000:
+                score -= 0.15
+            # 水冷佔預算比例過高額外懲罰
+            if water.price > self.budget * 0.12:
+                score -= (water.price - self.budget * 0.12) / self.budget * 0.5
+            # 接近預算上限時偏向風冷
+            if build.total_price > self.budget * 0.85:
+                score -= 0.05
         # 機殼優先選有風扇的
         case = build.parts.get("機殼")
         if case:
@@ -233,9 +271,14 @@ class GARecommender:
         over = build.total_price - self.budget
         if over <= 0:
             return 0.0
-        # 讓超出預算的懲罰更符合實務感受：
-        # 10% 超支時至少扣 0.5，20% 超支時扣 1.0
-        return min(over / self.budget * 5.0, 4.0)
+        ratio = over / self.budget
+        # 分段懲罰：小幅超支線性扣，大幅超支指數爆炸（移除上限）
+        # 10% 超支扣 0.5；30% 超支扣 ~3；超支 1 倍以上扣到完全淘汰
+        if ratio <= 0.30:
+            return ratio * 5.0          # 0~1.5
+        else:
+            # 超過 30% 後改用指數，超支越多罰越狠，無上限
+            return 1.5 + (ratio - 0.30) ** 1.5 * 20.0
 
     def _tournament(self, pop: list[Build], fits: list[float]) -> Build:
         idx = random.sample(range(len(pop)), min(self.tourn_k, len(pop)))

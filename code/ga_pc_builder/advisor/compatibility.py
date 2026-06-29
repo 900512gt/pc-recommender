@@ -62,17 +62,27 @@ class CompatibilityChecker:
         # 散熱器相容性
         cooler = air or water
         if cpu and cooler:
-            # TDP 檢查
+            # 用「實際功耗」對比「推斷壓制力」，兩者都不靠不可靠的標稱值
+            from data.cpu_power import get_actual_power
+            from data.cooler_capacity import estimate_cooler_capacity
             try:
-                cpu_tdp    = float(cpu.specs.get("tdp", 0) or 0)
-                cooler_tdp = float(cooler.specs.get("max_tdp", 0) or 0)
-                if cpu_tdp > 0 and cooler_tdp > 0:
-                    if cpu_tdp > cooler_tdp:
-                        penalty += 1.5
-                        issues.append(f"CPU TDP {cpu_tdp}W > 散熱器上限 {cooler_tdp}W")
-                    elif cpu_tdp > cooler_tdp * 0.85:
-                        penalty += 0.5
-                        issues.append(f"CPU TDP {cpu_tdp}W 接近散熱器上限 {cooler_tdp}W，餘裕不足")
+                nominal_tdp = float(cpu.specs.get("tdp", 0) or 0)
+                cpu_power   = get_actual_power(cpu.name, fallback_tdp=nominal_tdp or 65)
+                cooler_cap  = estimate_cooler_capacity(cooler.name, cooler.specs)
+
+                if cpu_power > cooler_cap:
+                    # 壓不住：差距越大罰越重
+                    gap = cpu_power - cooler_cap
+                    penalty += 1.5 + min(gap / 100, 1.5)
+                    issues.append(
+                        f"散熱不足：{cpu.name[:18]} 實際功耗約 {cpu_power:.0f}W，"
+                        f"但散熱器只壓得住約 {cooler_cap:.0f}W"
+                    )
+                elif cpu_power > cooler_cap * 0.9:
+                    penalty += 0.5
+                    issues.append(
+                        f"散熱餘裕不足：CPU 約 {cpu_power:.0f}W，散熱器約 {cooler_cap:.0f}W"
+                    )
             except (ValueError, TypeError):
                 pass
 

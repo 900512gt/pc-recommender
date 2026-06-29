@@ -16,11 +16,20 @@ def _sigmoid(x: float) -> float:
 
 
 #  Feasibility Layer 
-RAM_BUDGET_RATIO = 0.18  # RAM 最多佔預算 18%
+def get_ram_budget_ratio(budget: int) -> float:
+    """
+    RAM 佔預算比例：低預算放寬，避免 32GB 全被排除只能選 8GB。
+    """
+    if budget <= 25000:
+        return 0.30      # 低預算放寬到 30%，至少買得起 16GB
+    elif budget <= 40000:
+        return 0.22
+    else:
+        return 0.18      # 高預算維持嚴格比例
 
 def ram_feasible(part, budget: int) -> bool:
     """超過預算比例直接排除"""
-    return part.price <= budget * RAM_BUDGET_RATIO
+    return part.price <= budget * get_ram_budget_ratio(budget)
 
 
 #  Preference Layer 
@@ -36,12 +45,18 @@ def pick_ram(catalog, build, budget: int):
         return None
 
 
-    # 容量至少 32GB
+    # 優先 32GB
     feasible = [p for p in pool
                 if ram_feasible(p, budget)
                 and (p.specs.get("capacity_gb") or 0) >= 32]
 
-    # 如果真的沒得選才會到16GB
+    # 32GB 買不起 → 退而求其次選 16GB（不要直接掉到 8GB）
+    if not feasible:
+        feasible = [p for p in pool
+                    if ram_feasible(p, budget)
+                    and (p.specs.get("capacity_gb") or 0) >= 16]
+
+    # 16GB 也買不起 → 才放寬到所有 feasible
     if not feasible:
         feasible = [p for p in pool if ram_feasible(p, budget)]
 

@@ -152,8 +152,39 @@ def get_user_input():
         else:
             print("請輸入 1、2 或 3")
 
+    # 預算策略
+    print("\n預算策略：")
+    print("1. 抓滿預算（在預算內配最強的配置）")
+    print("2. 留有餘裕（先配主機，剩餘預算留給你自己決定升級）")
+    while True:
+        choice = input("請選擇（1/2）：").strip()
+        if choice == "1":
+            reserve = 0
+            break
+        elif choice == "2":
+            # 讓使用者自己輸入要留多少
+            while True:
+                try:
+                    reserve = int(input(
+                        f"  你想保留多少升級空間？（NT$，預算 {budget:,}）："
+                    ).strip())
+                    if reserve < 0:
+                        print("  請輸入正數")
+                        continue
+                    if reserve >= budget:
+                        print(f"  保留金額不能超過預算 {budget:,}")
+                        continue
+                    if budget - reserve < 10000:
+                        print(f"  保留 {reserve:,} 後主機預算只剩 {budget-reserve:,}，太少了")
+                        continue
+                    break
+                except ValueError:
+                    print("  請輸入數字")
+            break
+        else:
+            print("請輸入 1 或 2")
 
-    return budget, usage, cooling_prefer
+    return budget, usage, cooling_prefer, reserve
  
 
  
@@ -170,18 +201,25 @@ def main():
     advisor = UpgradeAdvisor(catalog, scorer, checker)
  
     # 使用者輸入
-    budget, usage, cooling_prefer= get_user_input()
+    budget, usage, cooling_prefer, reserve = get_user_input()
     psu_tier = "standard"
- 
-    print(f"\n用途：{usage}  |  預算：NT${budget:,}  |  散熱：{cooling_prefer}")
- 
-    # 執行 GA
+
+    # 留有餘裕：GA 用「預算 - 保留額」配主機，剩餘留給升級建議
+    ga_budget = budget - reserve
+
+    if reserve > 0:
+        print(f"\n用途：{usage}  |  總預算：NT${budget:,}  |  散熱：{cooling_prefer}")
+        print(f"主機預算：NT${ga_budget:,}（保留 NT${reserve:,} 作升級彈性）")
+    else:
+        print(f"\n用途：{usage}  |  預算：NT${budget:,}  |  散熱：{cooling_prefer}")
+
+    # 執行 GA（用 ga_budget 配主機）
     ga = GARecommender(
         catalog=catalog,
         scorer=scorer,
         checker=checker,
         usage=usage,
-        budget=budget,
+        budget=ga_budget,
         pop_size=300,
         generations=300,
         elite_k=2,
@@ -200,12 +238,18 @@ def main():
 
     # 預算分析與升級建議
     best = top5[0]
+    # 升級空間 = 原始總預算 - 實際花費（含被保留的餘裕）
     remaining = budget - best.total_price
     print(f"\n{'='*60}")
     print(f"【預算分析】")
-    print(f"  配置總價：NT${best.total_price:,}  剩餘預算：NT${remaining:,}")
-    
-    # 使用新的升級建議系統
+    if reserve > 0:
+        print(f"  主機配置：NT${best.total_price:,}（目標 NT${ga_budget:,}）")
+        print(f"  總預算：NT${budget:,}  可升級空間：NT${remaining:,}")
+        print(f"  （含你保留的 NT${reserve:,} + 主機未用完的部分）")
+    else:
+        print(f"  配置總價：NT${best.total_price:,}  剩餘預算：NT${remaining:,}")
+
+    # 使用新的升級建議系統（用真正的剩餘空間）
     print_upgrade_recommendations(advisor, best, budget, remaining, usage)
 
     export_results(top5, scorer, checker, "ga_results.xlsx")
