@@ -1,0 +1,217 @@
+{
+  "metadata": {
+    "source_url_cpu": "https://www.cpubenchmark.net/cpu_list.php",
+    "source_url_gpu": "https://www.videocardbenchmark.net/gpu_list.php",
+    "captured_at": "2026-04-26",
+    "cpu_metric": "PassMark CPU Mark (multi-thread)",
+    "gpu_metric": "PassMark G3D Mark"
+  },
+  "CPU": {
+    "AMD R5 3400G": {
+      "benchmark": 9188,
+      "source": "passmark"
+    },
+    "AMD R5 5500GT": {
+      "benchmark": 19018,
+      "source": "passmark"
+    },
+    "AMD R5 5500X3D": {
+      "benchmark": 20171,
+      "source": "passmark"
+    },
+    "AMD R5 5600GT": {
+      "benchmark": 20231,
+      "source": "passmark"
+    },
+    "AMD R5 5600XT": {
+      "benchmark": 22283,
+      "source": "passmark"
+    },
+    "AMD R5 7500F": {
+      "benchmark": 26589,
+      "source": "passmark"
+    },
+    "AMD R5 8400F": {
+      "benchmark": 24474,
+      "source": "passmark"
+    },
+    "AMD R5 8500G": {
+      "benchmark": 21436,
+      "source": "passmark"
+    },
+    "AMD R5 8600G": {
+      "benchmark": 25201,
+      "source": "passmark"
+    },
+    "AMD R5 9500F": {
+      "benchmark": 27903,
+      "source": "passmark"
+    },
+    "AMD R5 9600X": {
+      "benchmark": 30073,
+      "source": "passmark"
+    },
+    "AMD R7 7700": {
+      "benchmark": 34368,
+      "source": "passmark"
+    },
+    "AMD R7 7800X3D": {
+      "benchmark": 34285,
+      "source": "passmark"
+    },
+    "AMD R7 8700G": {
+      "benchmark": 31562,
+      "source": "passmark"
+    },
+    "AMD R7 9700X": {
+      "benchmark": 37064,
+      "source": "passmark"
+    },
+    "AMD R9 9800X3D": {
+      "benchmark": 39976,
+      "source": "passmark"
+    },
+    "AMD R9 9900X": {
+      "benchmark": 54431,
+      "source": "passmark"
+    },
+    "AMD R9 9900X3D": {
+      "benchmark": 56213,
+      "source": "passmark"
+    },
+    "AMD R9 9950X": {
+      "benchmark": 65756,
+      "source": "passmark"
+    },
+    "AMD R9 9950X3D": {
+      "benchmark": 70202,
+      "source": "passmark"
+    },
+    "Intel Core Ultra 5 225": {
+      "benchmark": 30371,
+      "source": "passmark"
+    },
+    "Intel Core Ultra 5 225F": {
+      "benchmark": 31169,
+      "source": "passmark"
+    },
+    "Intel Core Ultra 5 235": {
+      "benchmark": 40052,
+      "source": "passmark"
+    },
+    "Intel Core Ultra 5 245K": {
+      "benchmark": 43201,
+      "source": "passmark"
+    },
+    "Intel Core Ultra 5 245KF": {
+      "benchmark": 43230,
+      "source": "passmark"
+    },
+    "Intel Core Ultra 7 265K": {
+      "benchmark": 58701,
+      "source": "passmark"
+    },
+    "Intel Core Ultra 7 265KF": {
+      "benchmark": 58579,
+      "source": "passmark"
+    },
+    "Intel Core Ultra 9 285K": {
+      "benchmark": 67286,
+      "source": "passmark"
+    },
+    "Intel i3-14100": {
+      "benchmark": 15112,
+      "source": "passmark"
+    },
+    "Intel i5-12400": {
+      "benchmark": 18790,
+      "source": "passmark"
+    },
+    "Intel i5-14400": {
+      "benchmark": 25132,
+      "source": "passmark"
+    },
+    "Intel i5-14400F": {
+      "benchmark": 25554,
+      "source": "passmark"
+    },
+    "Intel i7-14700": {
+      "benchmark": 40643,
+      "source": "passmark"
+    }
+  },
+  "GPU": {
+    "AMD Radeon RX 7650 GRE": {
+      "benchmark": 18413,
+      "source": "passmark"
+    },
+    "AMD Radeon RX 9060 XT": {
+      "benchmark": 20129,
+      "source": "passmark"
+    },
+    "AMD Radeon RX 9070": {
+      "benchmark": 25402,
+      "source": "passmark"
+    },
+    "AMD Radeon RX 9070 GRE": {
+      "benchmark": 24025,
+      "source": "passmark"
+    },
+    "AMD Radeon RX 9070 XT": {
+      "benchmark": 26904,
+      "source": "passmark"
+    },
+    "GT 1030": {
+      "benchmark": 2400,
+      "source": "passmark"
+    },
+    "GT 710": {
+      "benchmark": 619,
+      "source": "passmark"
+    },
+    "GT 730": {
+      "benchmark": 824,
+      "source": "passmark"
+    },
+    "Intel Arc B580": {
+      "benchmark": 12930,
+      "source": "passmark"
+    },
+    "RTX 3050": {
+      "benchmark": 12496,
+      "source": "passmark"
+    },
+    "RTX 3050-6G": {
+      "benchmark": 10761,
+      "source": "passmark"
+    },
+    "RTX 5050 8G": {
+      "benchmark": 17159,
+      "source": "passmark"
+    },
+    "RTX 5060 8G": {
+      "benchmark": 20803,
+      "source": "passmark"
+    },
+    "RTX 5060 Ti 16G": {
+      "benchmark": 22648,
+      "source": "passmark"
+    },
+    "RTX 5060 Ti 8G": {
+      "benchmark": 22251,
+      "source": "passmark"
+    },
+    "RTX 5070 12G": {
+      "benchmark": 28754,
+      "source": "passmark"
+    },
+    "RTX 5070 Ti 16G": {
+      "benchmark": 32424,
+      "source": "passmark"
+    },
+    "RTX 5080 16G": {
+      "benchmark": 35696,
+      "source": "passmark"
+    }
+  }
+}
