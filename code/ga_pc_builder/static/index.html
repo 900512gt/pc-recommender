@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GA 電腦配置推薦</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", sans-serif;
+      background: #ffffff;
+      color: #33333a;
+      font-size: 15px;
+      line-height: 1.6;
+    }
+
+    /* ── Layout ─────────────────────────────────────────────────────────── */
+    .page {
+      max-width: 780px;
+      margin: 0 auto;
+      padding: 56px 24px 120px;
+    }
+
+    /* ── Header ─────────────────────────────────────────────────────────── */
+    .header { margin-bottom: 48px; }
+
+    .header-eyebrow {
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #6366f1;
+      margin-bottom: 10px;
+    }
+
+    .header h1 {
+      font-size: 30px;
+      font-weight: 700;
+      color: #1a1a1a;
+      letter-spacing: -0.6px;
+      line-height: 1.25;
+    }
+
+    .header p {
+      margin-top: 10px;
+      font-size: 15px;
+      color: #999999;
+      max-width: 480px;
+    }
+
+    /* ── Card ───────────────────────────────────────────────────────────── */
+    .card {
+      background: #f4f4f7;
+      border: 1px solid #e5e5ea;
+      border-radius: 14px;
+      padding: 28px 32px;
+      margin-bottom: 16px;
+    }
+
+    .card-title {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #999999;
+      margin-bottom: 22px;
+    }
+
+    /* ── Form ───────────────────────────────────────────────────────────── */
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .form-group { display: flex; flex-direction: column; gap: 6px; }
+
+    .form-group label {
+      font-size: 13px;
+      font-weight: 600;
+      color: #1a1a1a;
+    }
+
+    .form-group input,
+    .form-group select {
+      height: 42px;
+      padding: 0 14px;
+      border: 1px solid #e5e5ea;
+      border-radius: 8px;
+      background: #ffffff;
+      color: #33333a;
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      appearance: none;
+      -webkit-appearance: none;
+    }
+
+    .form-group select {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23999' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 14px center;
+      padding-right: 36px;
+    }
+
+    .form-group input:focus,
+    .form-group select:focus {
+      border-color: #6366f1;
+      box-shadow: 0 0 0 3px rgba(99,102,241,0.12);
+    }
+
+    .form-group input.invalid {
+      border-color: #f43f5e;
+      box-shadow: 0 0 0 3px rgba(244,63,94,0.10);
+    }
+
+    .form-hint {
+      font-size: 12px;
+      color: #999999;
+    }
+
+    option:disabled { color: #c0c0c0; }
+
+    /* ── Button ─────────────────────────────────────────────────────────── */
+    .btn-row { margin-top: 28px; }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 28px;
+      height: 44px;
+      background: #6366f1;
+      color: #ffffff;
+      border: none;
+      border-radius: 9px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s, transform 0.1s;
+      letter-spacing: 0.01em;
+    }
+
+    .btn:hover:not(:disabled) { opacity: 0.88; }
+    .btn:active:not(:disabled) { transform: scale(0.98); }
+    .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    /* ── Loading ────────────────────────────────────────────────────────── */
+    .loading {
+      display: none;
+      align-items: center;
+      gap: 12px;
+      margin-top: 24px;
+      color: #999999;
+      font-size: 13px;
+    }
+    .loading.visible { display: flex; }
+
+    .spinner {
+      flex-shrink: 0;
+      width: 18px;
+      height: 18px;
+      border: 2px solid #e5e5ea;
+      border-top-color: #6366f1;
+      border-radius: 50%;
+      animation: spin 0.75s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Error ──────────────────────────────────────────────────────────── */
+    .error-box {
+      display: none;
+      margin-top: 18px;
+      padding: 12px 16px;
+      background: #fff1f2;
+      border: 1px solid #fecdd3;
+      border-radius: 8px;
+      color: #be123c;
+      font-size: 13px;
+    }
+    .error-box.visible { display: block; }
+
+    /* ── Results ────────────────────────────────────────────────────────── */
+    .results { display: none; }
+    .results.visible { display: block; }
+
+    /* Total price */
+    .total-block { margin-bottom: 26px; }
+
+    .total-price {
+      font-size: 34px;
+      font-weight: 800;
+      color: #6366f1;
+      letter-spacing: -1px;
+      line-height: 1;
+    }
+
+    .total-meta {
+      margin-top: 6px;
+      font-size: 13px;
+      color: #999999;
+    }
+
+    /* Parts table */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th {
+      text-align: left;
+      font-size: 11px;
+      font-weight: 700;
+      color: #999999;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 0 0 10px;
+      border-bottom: 1px solid #e5e5ea;
+    }
+
+    td {
+      padding: 12px 0;
+      font-size: 14px;
+      border-bottom: 1px solid #e5e5ea;
+      vertical-align: middle;
+    }
+
+    tr:last-child td { border-bottom: none; }
+
+    .col-cat {
+      width: 76px;
+      font-size: 12px;
+      font-weight: 700;
+      color: #1a1a1a;
+      padding-right: 8px;
+    }
+
+    .col-name { color: #33333a; }
+
+    .col-price {
+      width: 100px;
+      text-align: right;
+      white-space: nowrap;
+      font-size: 13px;
+      font-variant-numeric: tabular-nums;
+      color: #1a1a1a;
+      font-weight: 500;
+    }
+
+    .col-score {
+      width: 70px;
+      text-align: right;
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+      color: #999999;
+    }
+
+    /* Compatibility */
+    .compat-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .compat-ok {
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      color: #15803d;
+    }
+
+    .compat-warn {
+      background: #fff7ed;
+      border: 1px solid #fed7aa;
+      color: #c2410c;
+    }
+
+    .compat-issue-list {
+      margin-top: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .compat-issue {
+      font-size: 13px;
+      color: #c2410c;
+    }
+
+    /* Upgrade suggestions */
+    .upgrade-item {
+      padding: 18px 0;
+      border-bottom: 1px solid #e5e5ea;
+    }
+    .upgrade-item:last-child { border-bottom: none; }
+
+    .upgrade-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .upgrade-num {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: #6366f1;
+      color: #fff;
+      font-size: 11px;
+      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .upgrade-cat {
+      font-weight: 700;
+      color: #1a1a1a;
+      font-size: 14px;
+    }
+
+    .upgrade-cost {
+      margin-left: auto;
+      font-size: 14px;
+      font-weight: 700;
+      color: #6366f1;
+    }
+
+    .upgrade-parts {
+      display: grid;
+      grid-template-columns: 1fr 32px 1fr;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .upgrade-part {
+      background: #ffffff;
+      border: 1px solid #e5e5ea;
+      border-radius: 8px;
+      padding: 10px 12px;
+    }
+
+    .upgrade-part-label {
+      font-size: 11px;
+      color: #999999;
+      font-weight: 600;
+      margin-bottom: 3px;
+    }
+
+    .upgrade-part-name {
+      font-size: 13px;
+      color: #1a1a1a;
+      font-weight: 500;
+      line-height: 1.4;
+    }
+
+    .upgrade-part-price {
+      font-size: 12px;
+      color: #999999;
+      margin-top: 3px;
+    }
+
+    .upgrade-arrow {
+      text-align: center;
+      color: #6366f1;
+      font-size: 18px;
+      font-weight: 300;
+    }
+
+    .upgrade-footer {
+      font-size: 13px;
+      color: #999999;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .upgrade-benefit {
+      color: #33333a;
+      font-weight: 600;
+    }
+
+    .dot { color: #e5e5ea; }
+
+    /* ── Responsive ─────────────────────────────────────────────────────── */
+    @media (max-width: 580px) {
+      .form-grid { grid-template-columns: 1fr; }
+      .upgrade-parts { grid-template-columns: 1fr; }
+      .upgrade-arrow { display: none; }
+      .card { padding: 22px 20px; }
+      .total-price { font-size: 28px; }
+    }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ── Header ── -->
+  <header class="header">
+    <div class="header-eyebrow">Genetic Algorithm</div>
+    <h1>GA 電腦配置推薦</h1>
+    <p>輸入預算、用途與散熱偏好，遺傳演算法自動為你配出最佳電腦配置</p>
+  </header>
+
+  <!-- ── Form card ── -->
+  <div class="card">
+    <div class="card-title">設定需求</div>
+    <form id="form" novalidate>
+      <div class="form-grid">
+
+        <div class="form-group">
+          <label for="budget">預算（NT$）</label>
+          <input type="number" id="budget" min="10000" step="1000"
+                 placeholder="例如 50000" required>
+          <span class="form-hint">最低 NT$10,000</span>
+        </div>
+
+        <div class="form-group">
+          <label for="cooling">散熱偏好</label>
+          <select id="cooling">
+            <option value="auto">自動選擇</option>
+            <option value="風冷">風冷</option>
+            <option id="opt-water" value="水冷" style="display:none">水冷</option>
+          </select>
+          <span class="form-hint" id="cooling-hint" style="display:none">預算 NT$100,000 以上可選水冷</span>
+        </div>
+
+        <div class="form-group">
+          <label for="usage">用途</label>
+          <select id="usage">
+            <option value="工作" selected>工作</option>
+            <option value="遊戲">遊戲</option>
+            <option value="一般文書" disabled>一般文書（即將推出）</option>
+          </select>
+        </div>
+
+      </div>
+
+      <div class="btn-row">
+        <button type="submit" class="btn" id="submit-btn">開始推薦</button>
+      </div>
+    </form>
+
+    <div class="loading" id="loading">
+      <div class="spinner"></div>
+      <span>GA 演算法計算中，約需 8–12 秒…</span>
+    </div>
+
+    <div class="error-box" id="error-box"></div>
+  </div>
+
+  <!-- ── Results ── -->
+  <div class="results" id="results">
+
+    <!-- Best build -->
+    <div class="card">
+      <div class="card-title">最佳配置</div>
+      <div class="total-block">
+        <div class="total-price" id="total-price">—</div>
+        <div class="total-meta" id="total-meta"></div>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th class="col-cat">類別</th>
+            <th>型號</th>
+            <th class="col-price">價格</th>
+            <th class="col-score">情感分</th>
+          </tr>
+        </thead>
+        <tbody id="parts-body"></tbody>
+      </table>
+    </div>
+
+    <!-- Compatibility -->
+    <div class="card">
+      <div class="card-title">相容性檢查</div>
+      <div id="compat-badge"></div>
+      <div class="compat-issue-list" id="compat-issues"></div>
+    </div>
+
+    <!-- Upgrade suggestions -->
+    <div class="card">
+      <div class="card-title">升級建議</div>
+      <div id="upgrades-body"></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ── RAG Chat Widget anchor ────────────────────────────────────────────────
+     Mount your RAG widget here. This element is fixed to the bottom-right
+     corner. Inject the widget script / web-component into #rag-widget-anchor.
+─────────────────────────────────────────────────────────────────────────── -->
+<div id="rag-widget-anchor" style="position:fixed;bottom:24px;right:24px;z-index:999;">
+  <!-- RAG widget will be injected here -->
+</div>
+
+<script>
+  const API = '/api/recommend';
+
+  const form       = document.getElementById('form');
+  const submitBtn  = document.getElementById('submit-btn');
+  const loadingEl  = document.getElementById('loading');
+  const errorBox   = document.getElementById('error-box');
+  const resultsEl  = document.getElementById('results');
+  const budgetInput = document.getElementById('budget');
+
+  // ── Helpers ────────────────────────────────────────────────────────────────
+
+  function ntd(n) {
+    return 'NT$' + Number(n).toLocaleString('zh-TW');
+  }
+
+  function setLoading(on) {
+    submitBtn.disabled = on;
+    loadingEl.classList.toggle('visible', on);
+  }
+
+  function showError(msg) {
+    errorBox.textContent = '錯誤：' + msg;
+    errorBox.classList.add('visible');
+  }
+
+  function clearError() {
+    errorBox.textContent = '';
+    errorBox.classList.remove('visible');
+  }
+
+  // ── Form submit ────────────────────────────────────────────────────────────
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    clearError();
+
+    const budget = parseInt(budgetInput.value, 10);
+    if (!budget || budget < 10000) {
+      budgetInput.classList.add('invalid');
+      showError('預算至少需要 NT$10,000');
+      budgetInput.focus();
+      return;
+    }
+    budgetInput.classList.remove('invalid');
+
+    const cooling = document.getElementById('cooling').value;
+    const usage   = document.getElementById('usage').value;
+
+    setLoading(true);
+    resultsEl.classList.remove('visible');
+
+    try {
+      const resp = await fetch(API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ budget, cooling_prefer: cooling, usage }),
+      });
+
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error(err.detail || `HTTP ${resp.status}`);
+      }
+
+      const data = await resp.json();
+      render(data);
+    } catch (err) {
+      showError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  });
+
+  budgetInput.addEventListener('input', () => {
+    budgetInput.classList.remove('invalid');
+    updateCoolingOptions();
+  });
+
+  function updateCoolingOptions() {
+    const budget = parseInt(budgetInput.value, 10) || 0;
+    const optWater = document.getElementById('opt-water');
+    const coolingHint = document.getElementById('cooling-hint');
+    const coolingSelect = document.getElementById('cooling');
+    const showWater = budget >= 100000;
+
+    optWater.style.display = showWater ? '' : 'none';
+    coolingHint.style.display = showWater ? 'none' : (budget > 0 ? '' : 'none');
+
+    if (!showWater && coolingSelect.value === '水冷') {
+      coolingSelect.value = 'auto';
+    }
+  }
+
+  // ── Render results ─────────────────────────────────────────────────────────
+
+  function render(data) {
+    // Total
+    document.getElementById('total-price').textContent = ntd(data.total_price);
+    document.getElementById('total-meta').textContent =
+      `預算 ${ntd(data.budget)}　剩餘 ${ntd(Math.max(data.remaining, 0))}`;
+
+    // Parts table
+    const tbody = document.getElementById('parts-body');
+    tbody.innerHTML = '';
+    for (const p of data.parts) {
+      const tr = document.createElement('tr');
+      tr.innerHTML =
+        `<td class="col-cat">${esc(p.category)}</td>` +
+        `<td class="col-name">${esc(p.name)}</td>` +
+        `<td class="col-price">${ntd(p.price)}</td>` +
+        `<td class="col-score">${p.score.toFixed(2)}</td>`;
+      tbody.appendChild(tr);
+    }
+
+    // Compatibility
+    const compat = data.compatibility;
+    const badgeEl = document.getElementById('compat-badge');
+    const issuesEl = document.getElementById('compat-issues');
+
+    if (compat.ok) {
+      badgeEl.innerHTML =
+        `<span class="compat-badge compat-ok">✓&nbsp; 無相容性問題</span>`;
+      issuesEl.innerHTML = '';
+    } else {
+      badgeEl.innerHTML =
+        `<span class="compat-badge compat-warn">⚠&nbsp; ` +
+        `發現 ${compat.issues.length} 個問題（懲罰分 ${compat.penalty}）</span>`;
+      issuesEl.innerHTML = compat.issues
+        .map(i => `<div class="compat-issue">• ${esc(i)}</div>`)
+        .join('');
+    }
+
+    // Upgrades
+    const upgradesEl = document.getElementById('upgrades-body');
+    if (!data.upgrades || data.upgrades.length === 0) {
+      upgradesEl.innerHTML =
+        `<p style="font-size:13px;color:#999">目前配置已是此預算最佳分配，無升級建議。</p>`;
+    } else {
+      upgradesEl.innerHTML = data.upgrades.map(u => `
+        <div class="upgrade-item">
+          <div class="upgrade-header">
+            <span class="upgrade-num">${u.priority}</span>
+            <span class="upgrade-cat">${esc(u.category)}</span>
+            <span class="upgrade-cost">+ ${ntd(u.cost)}</span>
+          </div>
+          <div class="upgrade-parts">
+            <div class="upgrade-part">
+              <div class="upgrade-part-label">目前</div>
+              <div class="upgrade-part-name">${esc(u.current_name)}</div>
+              <div class="upgrade-part-price">${ntd(u.current_price)}</div>
+            </div>
+            <div class="upgrade-arrow">→</div>
+            <div class="upgrade-part">
+              <div class="upgrade-part-label">升級</div>
+              <div class="upgrade-part-name">${esc(u.upgrade_name)}</div>
+              <div class="upgrade-part-price">${ntd(u.upgrade_price)}</div>
+            </div>
+          </div>
+          <div class="upgrade-footer">
+            <span class="upgrade-benefit">${esc(u.benefit)}</span>
+            <span class="dot">·</span>
+            <span>${esc(u.reason)}</span>
+            <span class="dot">·</span>
+            <span>情感分 ${esc(u.sentiment_improvement)}</span>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    resultsEl.classList.add('visible');
+    resultsEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  // Prevent XSS when rendering user-facing strings from the API
+  function esc(str) {
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+</script>
+<script src="http://localhost:8001/static/widget.js"></script>
+</body>
+</html>

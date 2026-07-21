@@ -4,16 +4,36 @@
 .env
 .DS_Store
 
-# 這個 Dockerfile 只服務 RAG API，只需要 src/rag/
-src/*
-!src/rag
-src/rag/__pycache__
+# 兩支 API image 共用這份 .dockerignore（build context 都是 repo 根目錄），
+# 下面排除的是「RAG API 跟 GA API 都不需要」的東西。
 
-# 只需要蒸餾好的 rag_chunks.jsonl，其他原始資料不打包進 image
+# 文件、前端（另外用 Vercel 部署）、測試/開發用的雜項
+docs/
+*.md
+test.html
+scripts/
+web/
+sample_test.jsonl
+dev.sh
+
+# 資料管線原始碼跟私有輸入，兩支 API image 都不會 import 到
+src/crawler/
+src/filter/
+src/database/
+src/benchmark_collection/
+
+# 原始未比對資料，GA API 執行時不會讀到
+bahamut_data/
+match_data/bahamut_unmatched.jsonl
+
+# data/ 只需要蒸餾好的 rag_chunks.jsonl，其他原始/中間資料不用打包
 data/*
 !data/rag_chunks.jsonl
 
-docs/
-scripts/
-*.md
-test.html
+# ga_pc_builder 底下跟 api.py 執行無關的東西
+code/ga_pc_builder/tests/
+code/ga_pc_builder/docs/
+code/ga_pc_builder/scripts/
+code/ga_pc_builder/main.py
+code/ga_pc_builder/*.png
+code/ga_pc_builder/*.xlsx
