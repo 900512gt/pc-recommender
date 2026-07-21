@@ -1,0 +1,191 @@
+"use client";
+
+import { useState, type FormEvent } from "react";
+import {
+  GaApiError,
+  recommend,
+  type CoolingPreference,
+  type RecommendResponse,
+  type Usage,
+} from "../lib/ga-api";
+
+const MIN_BUDGET = 10000;
+
+export default function BuilderPage() {
+  const [budget, setBudget] = useState(40000);
+  const [usage, setUsage] = useState<Usage>("工作");
+  const [cooling, setCooling] = useState<CoolingPreference>("auto");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<RecommendResponse | null>(null);
+
+  async function onSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (budget < MIN_BUDGET) {
+      setError(`預算至少需要 NT$${MIN_BUDGET.toLocaleString()}`);
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    setResult(null);
+    try {
+      const res = await recommend({ budget, usage, cooling_prefer: cooling });
+      setResult(res);
+    } catch (err) {
+      setError(err instanceof GaApiError ? err.message : "發生未知錯誤");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <main className="mx-auto w-full max-w-360 flex-1 px-6 py-16">
+      <h1 className="text-4xl font-semibold tracking-tight">配置建置器</h1>
+      <p className="mt-2 text-text-muted">
+        輸入預算與需求，透過遺傳演算法從零件資料庫中挑出最佳組合。
+      </p>
+
+      <form
+        onSubmit={onSubmit}
+        className="mt-10 grid max-w-xl gap-6 rounded-lg border border-border p-6"
+      >
+        <label className="flex flex-col gap-2">
+          <span className="text-sm font-medium">預算（NT$）</span>
+          <input
+            type="number"
+            min={MIN_BUDGET}
+            step={1000}
+            value={budget}
+            onChange={(e) => setBudget(Number(e.target.value))}
+            className="rounded-sm border border-border-strong px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent"
+          />
+        </label>
+
+        <label className="flex flex-col gap-2">
+          <span className="text-sm font-medium">用途</span>
+          <select
+            value={usage}
+            onChange={(e) => setUsage(e.target.value as Usage)}
+            className="rounded-sm border border-border-strong px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent"
+          >
+            <option value="工作">工作</option>
+            <option value="遊戲">遊戲</option>
+          </select>
+        </label>
+
+        <label className="flex flex-col gap-2">
+          <span className="text-sm font-medium">散熱偏好</span>
+          <select
+            value={cooling}
+            onChange={(e) => setCooling(e.target.value as CoolingPreference)}
+            className="rounded-sm border border-border-strong px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent"
+          >
+            <option value="auto">自動</option>
+            <option value="風冷">風冷</option>
+            <option value="水冷">水冷</option>
+          </select>
+        </label>
+
+        <button
+          type="submit"
+          disabled={loading}
+          className="rounded-sm bg-accent px-4 py-2 text-sm font-medium text-accent-inverse transition-opacity hover:opacity-90 disabled:opacity-50"
+        >
+          {loading ? "生成中…" : "生成配置"}
+        </button>
+      </form>
+
+      {error && (
+        <div className="mt-6 max-w-xl rounded-sm border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
+      {result && <ResultView result={result} />}
+    </main>
+  );
+}
+
+function ResultView({ result }: { result: RecommendResponse }) {
+  return (
+    <section className="mt-12 max-w-3xl">
+      <div className="grid grid-cols-3 gap-px overflow-hidden rounded-lg border border-border bg-border">
+        <Stat label="總價" value={`NT$${result.total_price.toLocaleString()}`} />
+        <Stat label="預算" value={`NT$${result.budget.toLocaleString()}`} />
+        <Stat label="剩餘" value={`NT$${result.remaining.toLocaleString()}`} />
+      </div>
+
+      <div
+        className={`mt-6 rounded-sm border px-4 py-3 text-sm ${
+          result.compatibility.ok
+            ? "border-border text-text-muted"
+            : "border-red-300 bg-red-50 text-red-700"
+        }`}
+      >
+        {result.compatibility.ok ? (
+          "相容性檢查通過"
+        ) : (
+          <div>
+            <p className="font-medium">相容性檢查發現問題</p>
+            <ul className="mt-1 list-disc pl-5">
+              {result.compatibility.issues.map((issue, i) => (
+                <li key={i}>{issue}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+
+      <table className="mt-8 w-full border-collapse text-sm">
+        <thead>
+          <tr className="border-b border-text text-left">
+            <th className="py-2 font-medium">類別</th>
+            <th className="py-2 font-medium">品項</th>
+            <th className="py-2 font-medium text-right">價格</th>
+            <th className="py-2 font-medium text-right">口碑分數</th>
+          </tr>
+        </thead>
+        <tbody>
+          {result.parts.map((part) => (
+            <tr key={part.category} className="border-b border-border">
+              <td className="py-2 text-text-muted">{part.category}</td>
+              <td className="py-2">{part.name}</td>
+              <td className="py-2 text-right">
+                NT${part.price.toLocaleString()}
+              </td>
+              <td className="py-2 text-right">{part.score.toFixed(2)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {result.upgrades.length > 0 && (
+        <div className="mt-10">
+          <h2 className="text-lg font-semibold">升級建議</h2>
+          <div className="mt-4 grid gap-4">
+            {result.upgrades.map((u, i) => (
+              <div key={i} className="rounded-lg border border-border p-4 text-sm">
+                <p className="font-medium">
+                  {u.category}：{u.current_name} → {u.upgrade_name}
+                </p>
+                <p className="mt-1 text-text-muted">{u.reason}</p>
+                <p className="mt-2 text-text-dim">
+                  加價 NT${u.cost.toLocaleString()} · {u.benefit}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="bg-bg p-4">
+      <p className="text-xs text-text-muted">{label}</p>
+      <p className="mt-1 text-xl font-semibold">{value}</p>
+    </div>
+  );
+}

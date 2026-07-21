@@ -6,16 +6,16 @@ from pathlib import Path
 # ─────────────────────────────────────────────
 # 路徑設定
 # ─────────────────────────────────────────────
-DATA_DIR = Path(r"C:\Users\Administrator\Desktop\專題資料庫\ga配單\data")
+_REPO_ROOT = Path(__file__).parent.parent.parent
 
 # 朋友提供的整合資料庫（PTT口碑 + 原價屋規格價格）
-DB_PATH = DATA_DIR / "ga_database_v2.json"
+DB_PATH = Path(__file__).parent / "data" / "ga_database_v2.json"
 
 # 你的巴哈評論標注資料
 MATCHED_FILES = [
-    DATA_DIR / "matched_part1.jsonl",
-    DATA_DIR / "matched_part2.jsonl",
-    DATA_DIR / "matched_part3.jsonl",
+    _REPO_ROOT / "match_data" / "matched_part1.jsonl",
+    _REPO_ROOT / "match_data" / "matched_part2.jsonl",
+    _REPO_ROOT / "match_data" / "matched_part3.jsonl",
 ]
 
 # ─────────────────────────────────────────────

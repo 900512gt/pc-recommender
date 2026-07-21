@@ -1,0 +1,26 @@
+**/__pycache__/
+**/*.pyc
+.git
+.env
+.DS_Store
+
+# 前端另外部署（例如 Vercel），不進這個 image
+web/
+
+# 原始未比對資料，GA API 執行時不會讀到
+bahamut_data/
+match_data/bahamut_unmatched.jsonl
+
+# ga_pc_builder 底下跟 api.py 執行無關的東西
+code/ga_pc_builder/tests/
+code/ga_pc_builder/docs/
+code/ga_pc_builder/scripts/
+code/ga_pc_builder/main.py
+code/ga_pc_builder/*.png
+code/ga_pc_builder/*.xlsx
+
+*.md
+*.xlsx
+*.png
+sample_test.jsonl
+dev.sh
