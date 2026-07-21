@@ -3685,7 +3685,7 @@
       "cuda_sp": 2048,
       "power_conn": "1*8pin",
       "benchmark": 20129,
-      "benchmark_source": "chip_mapped",
+      "benchmark_source": "chip_mapped",  
       "benchmark_chip": "AMD Radeon RX 9060 XT",
       "tgp_watts": 160,
       "tgp_source": "chip_mapped"

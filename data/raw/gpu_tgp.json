@@ -1,0 +1,27 @@
+{
+  "metadata": {
+    "captured_at": "2026-04-30",
+    "notes": "TGP/TBP from NVIDIA/AMD/Intel official spec pages or industry consensus"
+  },
+  "GPU": {
+    "AMD Radeon RX 7650 GRE":        {"tgp_watts": 170, "source": "AMD spec"},
+    "AMD Radeon RX 9060 XT(GDDR6)":  {"tgp_watts": 160, "source": "AMD spec"},
+    "AMD Radeon RX 9070 GRE(GDDR6)": {"tgp_watts": 220, "source": "AMD spec"},
+    "AMD Radeon RX 9070 XT":         {"tgp_watts": 304, "source": "AMD spec"},
+    "AMD Radeon RX 9070 XT(GDDR6)":  {"tgp_watts": 304, "source": "AMD spec"},
+    "AMD Radeon RX 9070(GDDR6)":     {"tgp_watts": 220, "source": "AMD spec"},
+    "GT 1030":                       {"tgp_watts": 30,  "source": "NVIDIA spec"},
+    "GT 710":                        {"tgp_watts": 20,  "source": "NVIDIA spec"},
+    "GT 730":                        {"tgp_watts": 49,  "source": "NVIDIA spec"},
+    "Intel Arc B580":                {"tgp_watts": 190, "source": "Intel spec"},
+    "RTX 3050":                      {"tgp_watts": 130, "source": "NVIDIA spec, 8GB"},
+    "RTX 3050-6G":                   {"tgp_watts": 70,  "source": "NVIDIA spec, 6GB low-power"},
+    "RTX 5050 8G(GDDR6)":            {"tgp_watts": 130, "source": "NVIDIA spec"},
+    "RTX 5060 8G(GDDR7)":            {"tgp_watts": 145, "source": "NVIDIA spec"},
+    "RTX 5060 Ti 16G(GDDR7)":        {"tgp_watts": 180, "source": "NVIDIA spec"},
+    "RTX 5060 Ti 8G(GDDR7)":         {"tgp_watts": 180, "source": "NVIDIA spec"},
+    "RTX 5070 12G(GDDR7)":           {"tgp_watts": 250, "source": "NVIDIA spec"},
+    "RTX 5070 Ti 16G(GDDR7)":        {"tgp_watts": 300, "source": "NVIDIA spec"},
+    "RTX 5080 16G(GDDR7)":           {"tgp_watts": 360, "source": "NVIDIA spec"}
+  }
+}

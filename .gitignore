@@ -1,0 +1,21 @@
+# --- 系統與環境檔案 ---
+.DS_Store
+.vscode/
+.claude/
+.env
+*.log
+
+# --- Python 暫存檔 ---
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+env/
+
+# --- 衍生資料（可重跑 embed_chunks.py 重建）---
+data/chroma_db/
+
+# --- 個人筆記／答辯準備，不進版控 ---
+docs/
+FULLSTACK_ARCHITECTURE.md
+SYSTEM_ARCHITECTURE.md

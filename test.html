@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PC 零件口碑 — Widget 測試頁</title>
+  <style>
+    /* 刻意使用和 widget 完全不同的樣式，驗證 Shadow DOM 隔離 */
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Georgia, "Times New Roman", serif;
+      background: #f0f4f8;
+      color: #1a202c;
+    }
+    .container {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 48px 24px 120px;
+    }
+    h1 {
+      font-size: 26px;
+      font-weight: 700;
+      margin-bottom: 10px;
+      color: #0f172a;
+    }
+    p { line-height: 1.75; color: #4a5568; margin-bottom: 16px; }
+    code {
+      background: #e2e8f0;
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-family: "SF Mono", Menlo, monospace;
+      font-size: 12.5px;
+      color: #1e293b;
+    }
+    hr { border: none; border-top: 1px solid #cbd5e1; margin: 32px 0; }
+    .step {
+      display: flex;
+      gap: 14px;
+      align-items: flex-start;
+      margin-bottom: 12px;
+    }
+    .step-num {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background: #0f172a;
+      color: #fff;
+      font-size: 12px;
+      font-family: monospace;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+    .step p { margin: 0; }
+    .note {
+      background: #fefce8;
+      border-left: 3px solid #ca8a04;
+      padding: 10px 14px;
+      border-radius: 0 6px 6px 0;
+      font-size: 13px;
+      color: #713f12;
+      margin-top: 24px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>PC 零件口碑 — Widget 測試頁</h1>
+    <p>
+      右下角圓形按鈕即為浮動聊天 widget。
+      頁面本身使用 Georgia 字型與淺色系，用來驗證 Shadow DOM 樣式隔離：
+      widget 不應該繼承這頁的任何 CSS。
+    </p>
+
+    <hr>
+
+    <h2 style="font-size:16px;margin-bottom:16px;color:#0f172a;">啟動步驟</h2>
+
+    <div class="step">
+      <div class="step-num">1</div>
+      <p>確認 <code>.env</code> 中已設定 <code>OPENAI_API_KEY</code>。</p>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <p>安裝後端依賴（若尚未安裝）：<br>
+        <code>pip install fastapi uvicorn python-multipart</code>
+      </p>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <p>從專案根目錄啟動後端：<br>
+        <code>python src/rag/server.py</code>
+      </p>
+    </div>
+    <div class="step">
+      <div class="step-num">4</div>
+      <p>以瀏覽器開啟此頁面（直接開檔案或用任意 HTTP server 都可）。</p>
+    </div>
+    <div class="step">
+      <div class="step-num">5</div>
+      <p>點擊右下角按鈕，試點範例 chip 或輸入問題，驗證串流回答。</p>
+    </div>
+
+    <div class="note">
+      ⚠️ 嵌入其他網站時，將 <code>&lt;script src="..."&gt;</code> 的來源改為你的伺服器網址，
+      並在載入前設定 <code>window.PCRAG_API_BASE = "https://your-server.com"</code>。
+    </div>
+  </div>
+
+  <!-- Widget 嵌入 — 後端必須在 localhost:8000 執行 -->
+  <script src="http://localhost:8000/static/widget.js"></script>
+</body>
+</html>

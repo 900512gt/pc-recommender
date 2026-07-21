@@ -1,0 +1,19 @@
+**/__pycache__/
+**/*.pyc
+.git
+.env
+.DS_Store
+
+# 這個 Dockerfile 只服務 RAG API，只需要 src/rag/
+src/*
+!src/rag
+src/rag/__pycache__
+
+# 只需要蒸餾好的 rag_chunks.jsonl，其他原始資料不打包進 image
+data/*
+!data/rag_chunks.jsonl
+
+docs/
+scripts/
+*.md
+test.html
