@@ -10,11 +10,14 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 
 from config import DB_PATH, MATCHED_FILES
 from data.catalog import PartCatalog
@@ -57,6 +60,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# 單次 /api/recommend 要跑 90,000 次 fitness 評估（約 8 秒），限制每 IP 頻率避免運算成本被打爆
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 app.mount("/static", StaticFiles(directory=_HERE / "static"), name="static")
 
 
@@ -78,7 +86,8 @@ class RecommendRequest(BaseModel):
 # ── endpoint ─────────────────────────────────────────────────────────────────
 
 @app.post("/api/recommend")
-def recommend(req: RecommendRequest):
+@limiter.limit("5/minute")
+def recommend(request: Request, req: RecommendRequest):
     if req.usage not in VALID_USAGES:
         raise HTTPException(status_code=400, detail=f"不支援的用途：{req.usage}")
     ga = GARecommender(

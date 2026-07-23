@@ -17,12 +17,15 @@ ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(ROOT))
 
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from openai import OpenAI
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 from starlette.concurrency import iterate_in_threadpool
 
 from src.rag.chat import chat_stream
@@ -47,6 +50,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# 每則訊息都會呼叫 OpenAI 計費，限制每 IP 頻率避免被打爆額度
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 STATIC_DIR = Path(__file__).parent / "static"
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
@@ -92,7 +100,8 @@ class ChatRequest(BaseModel):
 # ── Routes ────────────────────────────────────────────────────────────────────
 
 @app.post("/api/chat")
-async def chat_endpoint(req: ChatRequest):
+@limiter.limit("15/minute")
+async def chat_endpoint(request: Request, req: ChatRequest):
     """
     SSE 串流端點。
 
