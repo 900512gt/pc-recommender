@@ -68,7 +68,7 @@ _retriever: Retriever | None = None
 def _get_client() -> OpenAI:
     global _client
     if _client is None:
-        api_key = os.environ.get("OPENAI_API_KEY")
+        api_key = (os.environ.get("OPENAI_API_KEY") or "").strip()
         if not api_key:
             raise RuntimeError("請在 .env 設定 OPENAI_API_KEY")
         _client = OpenAI(api_key=api_key)
