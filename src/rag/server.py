@@ -45,7 +45,7 @@ app = FastAPI(title="PC 零件口碑 API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["https://pc-recommender.vercel.app"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
