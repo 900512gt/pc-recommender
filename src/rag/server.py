@@ -126,6 +126,8 @@ async def chat_endpoint(request: Request, req: ChatRequest):
                 payload = json.dumps({"text": text}, ensure_ascii=False)
                 yield f"data: {payload}\n\n"
         except Exception as exc:
+            import traceback
+            traceback.print_exc()
             err = json.dumps({"error": str(exc)}, ensure_ascii=False)
             yield f"data: {err}\n\n"
         finally:
