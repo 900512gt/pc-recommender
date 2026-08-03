@@ -34,9 +34,10 @@ from src.rag.retriever import Retriever
 load_dotenv(ROOT / ".env")
 
 # 語意搜尋 backend 切換（實驗用）：
-#   RAG_RETRIEVER=tfidf     （預設）現行 TF-IDF 版本
+#   RAG_RETRIEVER=tfidf     （預設）現行 TF-IDF 版本，讀 v1 chunk（data/rag_chunks.jsonl，一型號一 chunk）
 #   RAG_RETRIEVER=chroma    OpenAI embedding + Chroma 版本，需先執行 python src/rag/embed_chunks.py
 #   RAG_RETRIEVER=fulltext  類別全文丟給 LLM 判斷的版本，不需要額外索引
+#   RAG_RETRIEVER=v2        TF-IDF 版本，但讀 v2 chunk（data/rag_chunks_v2.jsonl，一型號拆成多個語意 chunk）
 RETRIEVER_BACKEND = os.environ.get("RAG_RETRIEVER", "tfidf")
 
 # ── App ───────────────────────────────────────────────────────────────────────
@@ -84,6 +85,9 @@ def _get_retriever():
         elif RETRIEVER_BACKEND == "fulltext":
             from src.rag.retriever_fulltext import RetrieverFulltext
             _retriever = RetrieverFulltext()
+        elif RETRIEVER_BACKEND == "v2":
+            from src.rag.retriever_v2 import RetrieverV2
+            _retriever = RetrieverV2()
         else:
             _retriever = Retriever()
         print(f"[RAG] 載入 {len(_retriever.chunks)} 個零件評價 chunk（backend={RETRIEVER_BACKEND}）")

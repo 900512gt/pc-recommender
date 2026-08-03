@@ -17,6 +17,15 @@ from src.rag.retriever import Retriever, chunk_to_context
 
 load_dotenv(ROOT / ".env")
 
+
+def _chunk_to_context(chunk: dict) -> str:
+    """v1/v2 chunk 格式不同，依 chunk 形狀分派：v2 chunk 有現成的 text 欄位，
+    v1（含 retriever_chroma / retriever_fulltext，三者都讀同一份 v1 格式）沒有，走舊版邏輯。"""
+    if "text" in chunk:
+        from src.rag.retriever_v2 import chunk_to_context_v2
+        return chunk_to_context_v2(chunk)
+    return chunk_to_context(chunk)
+
 SYSTEM_PROMPT = """你是一個專門協助台灣使用者選購電腦零件的聊天助理。
 你的回答主要依據台灣論壇（PTT、巴哈姆特）的真實使用者評論，以 RAG 方式提供。
 
@@ -58,7 +67,7 @@ def chat_stream(
     history 格式：[{"role": "user"|"assistant", "content": "..."}]
     """
     chunks = retriever.retrieve(user_query, top_k=2)
-    context_text = "\n\n".join(chunk_to_context(c) for c in chunks)
+    context_text = "\n\n".join(_chunk_to_context(c) for c in chunks)
     messages = build_messages(user_query, history, context_text)
 
     stream = client.chat.completions.create(
