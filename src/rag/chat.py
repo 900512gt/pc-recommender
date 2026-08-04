@@ -38,7 +38,7 @@ SYSTEM_PROMPT = """你是一個專門協助台灣使用者選購電腦零件的�
 - 使用繁體中文台灣用語（效能、顯示卡、記憶體等）
 - 不要在回答中重複或複製參考資料的格式，也不要自行加來源標注"""
 
-MODEL       = "gpt-4o"
+MODEL       = "gpt-5.5"
 MAX_HISTORY = 6
 
 
@@ -67,12 +67,16 @@ def chat_stream(
     history: list[dict],
     retriever: Retriever,
     client: OpenAI,
-    temperature: float = 0.7,
-    max_tokens: int = 800,
+    max_tokens: int = 2000,
 ):
     """
     串流版對話 generator：逐步 yield 累積文字。
     history 格式：[{"role": "user"|"assistant", "content": "..."}]
+
+    MODEL（gpt-5.5）是推理模型：不支援自訂 temperature（只吃預設值 1，
+    傳其他值會直接 400），所以這裡不傳 temperature 給 API；另外它的
+    max_completion_tokens 預算包含隱藏的推理 token，簡短問題也可能吃掉
+    幾百個 token 才開始輸出可見文字，預設值比舊版 gpt-4o 的 800 高很多。
     """
     chunks = retriever.retrieve(user_query, top_k=2)
     context_text = "\n\n".join(_chunk_to_context(c) for c in chunks)
@@ -80,9 +84,8 @@ def chat_stream(
 
     stream = client.chat.completions.create(
         model=MODEL,
-        max_tokens=max_tokens,
+        max_completion_tokens=max_tokens,
         messages=messages,
-        temperature=temperature,
         stream=True,
     )
 
