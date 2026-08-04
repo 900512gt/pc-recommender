@@ -19,6 +19,7 @@ v2 的 tfidf/chroma 也是同一份 rag_chunks_v2.jsonl、不同排序方式）�
 import json
 import os
 import re
+import time
 from pathlib import Path
 
 import chromadb
@@ -32,13 +33,29 @@ CHUNKS_FILE = ROOT / "data" / "rag_chunks_v2.jsonl"
 CHROMA_DIR  = ROOT / "data" / "chroma_db"
 COLLECTION  = "parts_v2"
 EMBED_MODEL = "text-embedding-3-small"
+QUERY_EMBED_RETRIES = 2  # 查詢時是即時回應使用者，重試次數/等待時間比批次建索引短
 
-# cosine distance 門檻（越小越相似），沿用 retriever_chroma.py（v1）校準過的起始值：
-#   MAX_DISTANCE 擋完全離題的查詢；MIN_GAP 擋「第一名沒有明顯贏過第二名」的模糊查詢
-# v2 是單一 chunk（比 v1 整型號的合併文字短很多），距離分布可能不太一樣，
-# 這兩個數字之後有更多 v2 的實際使用資料再重新校準。
+# cosine distance 門檻（越小越相似）。拿約 15 條涵蓋「明確查詢」「模糊但主題內」
+# 「完全離題」「主題邊緣（滑鼠/鍵盤等資料庫沒有的 3C 週邊）」四類的測試查詢，實測
+# v2（單一 chunk，比 v1 整型號合併文字短很多）的距離分布後校準：
+#   - 明確查詢的 top1 distance 落在 0.31~0.43
+#   - 模糊但主題內的落在 0.53~0.61
+#   - 完全離題的落在 0.65~0.70
+#   - 滑鼠/鍵盤這類主題邊緣的落在 0.60~0.61，剛好跟「模糊但主題內」重疊，
+#     沒有一個閾值能同時完美分開兩者；寧可保守一點讓少數模糊查詢落回背景知識
+#     回答（chat.py 現在會誠實標注「非來自論壇評價」），也不要冒著把滑鼠/鍵盤
+#     查詢誤配到機殼/顯卡評論、講得煞有介事的風險，所以維持在偏低的 0.6。
 MAX_DISTANCE = 0.6
-MIN_GAP      = 0.005
+
+# v1 另外有 MIN_GAP（擋「第一名沒有明顯贏過第二名」），v2 這裡刻意不沿用：
+# v2 chunk 的顆粒度是「單一面向」，查「性價比高的主機板」這種問題，本來就會有
+# 好幾個不同型號的「性價比」chunk 分數非常接近（每個型號都在講性價比，這是正常
+# 現象，不是資料沒有鑑別力）。實測「有沒有性價比高的主機板」這條查詢，top1/top2
+# 距離只差 0.0022，但 top1（mb__a520m__aspect__性價比）本身是完全合理的答案，
+# MIN_GAP=0.005 會誤傷這種案例。而且這裡本來就回傳 top_k（預設 2）個候選給 LLM，
+# 不是強迫選一個「唯一正確答案」，「評價相近」的情況已經交給 chat.py 的
+# SYSTEM_PROMPT 規則處理（如實告知使用者這幾款評價相近），不需要在 retriever 這層
+# 又用距離差距擋一次。
 
 load_dotenv(ROOT / ".env")
 
@@ -75,6 +92,23 @@ class RetrieverChromaV2:
             )
         db = chromadb.PersistentClient(path=str(chroma_dir))
         self._collection = db.get_collection(COLLECTION)
+        self._check_index_freshness()
+
+    def _check_index_freshness(self) -> None:
+        """檢查 Chroma 索引的 chunk_id 集合是不是跟目前的 rag_chunks_v2.jsonl 完全一致。
+        如果之後重新蒸餾但忘記重跑 embed_chunks_v2.py，索引會悄悄過期、检索到錯的/舊的
+        chunk 而不會有任何警告，所以這裡在啟動時就大聲印出來，方便從 log 發現問題。"""
+        indexed_ids = set(self._collection.get(include=[])["ids"])
+        local_ids = set(self.chunk_index.keys())
+        missing_from_index = local_ids - indexed_ids
+        stale_in_index = indexed_ids - local_ids
+        if missing_from_index or stale_in_index:
+            print(
+                f"[WARNING] RetrieverChromaV2 索引與 {CHUNKS_FILE.name} 不同步："
+                f"jsonl 有但索引沒有 {len(missing_from_index)} 筆、"
+                f"索引有但 jsonl 已刪除 {len(stale_in_index)} 筆。"
+                f"請重跑 python src/rag/embed_chunks_v2.py 重建索引。"
+            )
 
     # ── 公開 API（跟 retriever_v2.RetrieverV2 相同介面）──────────────
 
@@ -106,6 +140,20 @@ class RetrieverChromaV2:
 
         return found
 
+    def _embed_query(self, query: str) -> list[float]:
+        """查詢時即時呼叫 embedding API，暫時性錯誤（rate limit/網路）重試幾次，
+        避免使用者的單一次訊息因為 OpenAI 短暫抖動就直接失敗。"""
+        for attempt in range(QUERY_EMBED_RETRIES):
+            try:
+                return self._client.embeddings.create(
+                    model=EMBED_MODEL, input=[query]
+                ).data[0].embedding
+            except Exception:
+                if attempt == QUERY_EMBED_RETRIES - 1:
+                    raise
+                time.sleep(1.5 * (attempt + 1))
+        raise RuntimeError("unreachable")
+
     def _semantic_search(self, query: str, top_k: int) -> list[dict]:
         """OpenAI embedding + Chroma 向量搜尋，最小單位是單一 chunk。"""
         q_lower = query.lower()
@@ -116,14 +164,11 @@ class RetrieverChromaV2:
 
         where = {"category": {"$in": sorted(target_cats)}} if target_cats else None
 
-        query_vec = self._client.embeddings.create(
-            model=EMBED_MODEL, input=[query]
-        ).data[0].embedding
+        query_vec = self._embed_query(query)
 
-        # 多拿一筆，用來判斷「第一名贏第二名多少」
         result = self._collection.query(
             query_embeddings=[query_vec],
-            n_results=max(top_k, 2),
+            n_results=top_k,
             where=where,
         )
 
@@ -133,14 +178,9 @@ class RetrieverChromaV2:
         if not ids:
             return []
 
-        # 完全離題（例如問天氣）：連最相似的都差很遠，直接不回答
-        if distances[0] > MAX_DISTANCE:
-            return []
-
-        # 第一名沒有明顯贏過第二名：這批資料對這個問題沒有清楚的鑑別力，
-        # 與其硬選看似自信、實則接近雜訊的答案，不如老實回傳空結果，
+        # 完全離題（例如問天氣）：連最相似的都差很遠，直接不回答，
         # 讓 LLM 改用背景知識回答並註明「非論壇評價」（見 chat.py SYSTEM_PROMPT）。
-        if len(distances) >= 2 and (distances[1] - distances[0]) < MIN_GAP:
+        if distances[0] > MAX_DISTANCE:
             return []
 
         matched_ids = ids[:top_k]

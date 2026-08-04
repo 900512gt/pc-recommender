@@ -10,9 +10,6 @@ docs/
 FULLSTACK_ARCHITECTURE.md
 SYSTEM_ARCHITECTURE.md
 
-# --- 衍生資料（可重跑 embed_chunks.py 重建）---
-data/chroma_db/
-
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]

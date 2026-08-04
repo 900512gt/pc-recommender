@@ -49,6 +49,14 @@ def build_messages(user_query: str, history: list[dict], context_text: str) -> l
             "role": "system",
             "content": f"以下是本次查詢的社群評價參考資料：\n\n{context_text}",
         })
+    else:
+        # 沒有檢索到相關 chunk 時，明確告知 LLM 這個事實並重申免責提醒，
+        # 不要只靠它自己記得 SYSTEM_PROMPT 裡那條規則（實測發現常常會忘記加）。
+        messages.append({
+            "role": "system",
+            "content": "本次查詢沒有找到相關的論壇評論資料。請依你的背景知識回答，"
+                       "並在回答中明確告知使用者「以下為一般資訊，非來自論壇評價」。",
+        })
     messages.extend(history[-MAX_HISTORY:])
     messages.append({"role": "user", "content": user_query})
     return messages
