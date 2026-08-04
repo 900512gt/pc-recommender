@@ -1,5 +1,7 @@
 # RAG API（server.py，port 8001）
-# 只打包這支服務實際會 import 到的東西：src/rag/ + data/rag_chunks.jsonl。
+# 只打包這支服務實際會 import 到的東西：src/rag/ + data/rag_chunks*.jsonl + data/chroma_db/
+#（RAG_RETRIEVER=chroma_v2 需要後兩者：rag_chunks_v2.jsonl 是 chunk 內容本身，
+#  chroma_db/ 是對應的向量索引，兩者要一起打包，缺一個 RetrieverChromaV2 就會啟動失敗）。
 # 資料管線（crawler / filter / database / benchmark_collection）不會被跑進這個 image。
 #
 # Build（context 是 repo 根目錄）：
@@ -16,6 +18,8 @@ RUN pip install --no-cache-dir -r src/rag/requirements.txt
 
 COPY src/rag src/rag
 COPY data/rag_chunks.jsonl data/rag_chunks.jsonl
+COPY data/rag_chunks_v2.jsonl data/rag_chunks_v2.jsonl
+COPY data/chroma_db data/chroma_db
 
 ENV PYTHONUNBUFFERED=1
 EXPOSE 8001
