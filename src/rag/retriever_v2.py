@@ -9,6 +9,17 @@ summary/aspect/pros_cons/comparison），檢索邏輯照抄 retriever.py 的兩�
 讀不同的檔案、互不影響。切換方式見 server.py 的 RAG_RETRIEVER 環境變數
 （本版對應 RAG_RETRIEVER=v2）。
 
+已知限制（不是 bug，是這個方法的天花板）：字元 n-gram TF-IDF 對短、口語化
+的查詢，沒有能力可靠分辨「主題內」跟「純粹字面剛好重疊」。實測「晚餐吃什麼
+比較好」（離題）的相似度比「推薦一張適合玩遊戲的顯卡」（明確在主題內）還高
+（0.1861 vs 0.0728）。用完整測試組驗證過：明確查詢最低分（0.0728）本來就
+低於離題查詢最高分（0.1861），數學上不存在一個門檻能同時擋掉全部離題、放行
+全部明確查詢——**實測過調高 MIN_RELEVANCE_SCORE（試過 0.08）並不會減少誤判，
+只會多誤傷合理查詢，不要嘗試用調高門檻解決**。這正是正式環境選 chroma_v2
+（embedding）當主要 backend、不是這一版的原因：embedding 校準過的門檻
+（見 retriever_chroma_v2.py 的 MAX_DISTANCE）能正確分辨這類查詢，字元比對
+做不到。
+
 檢索策略：
   1. 精確比對型號 → 回傳該型號「全部」chunk（不受 top_k 限制），因為使用者
      指名問特定型號時，應該給完整資訊，而不是像語意搜尋那樣只挑幾個片段。
@@ -34,6 +45,15 @@ from src.rag.chunk_text import CATEGORY_KEYWORDS
 ROOT        = Path(__file__).parent.parent.parent
 CHUNKS_FILE = ROOT / "data" / "rag_chunks_v2.jsonl"
 GA_DB_FILE  = ROOT / "data" / "ga_database_v2.json"
+
+# 判斷「查詢是否離題」的最低相似度分數。實測過調高到 0.08 想減少誤判，結果
+# 反而更糟：「推薦一張適合玩遊戲的顯卡」這種合理查詢只有 0.0728 分，會被 0.08
+# 的門檻誤擋，但「晚餐吃什麼比較好」這種離題查詢卻有 0.1861 分，比 0.08 還高，
+# 照樣蒙混過關——用完整測試組的 min/max 驗證過，明確查詢最低分（0.0728）本來
+# 就低於離題查詢最高分（0.1861），數學上不存在一個門檻能同時擋掉全部離題、
+# 放行全部明確查詢。維持在原本的 0.05，不要為了「感覺應該更嚴格」去調高，
+# 調高只會誤傷合理查詢，擋不住真正的離題案例。見檔頭「已知限制」的完整說明。
+MIN_RELEVANCE_SCORE = 0.05
 
 # 信心不足時，在 context 文字後面加提醒，跟 v1 chunk_to_context() 的 low_confidence 提示同精神
 LOW_CONFIDENCE_LEVELS = ("insufficient", "low")
@@ -148,7 +168,7 @@ class RetrieverV2:
         query_vec = self._vectorizer.transform([query])
         scores    = cosine_similarity(query_vec, sub_matrix).flatten()
 
-        if scores.max() < 0.05:
+        if scores.max() < MIN_RELEVANCE_SCORE:
             return []
 
         top_local = scores.argsort()[::-1][:top_k]

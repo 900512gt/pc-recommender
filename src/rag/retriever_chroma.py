@@ -66,7 +66,16 @@ class RetrieverChroma:
                 f"找不到 {chroma_dir}，請先執行 python src/rag/embed_chunks.py 建立向量索引"
             )
         db = chromadb.PersistentClient(path=str(chroma_dir))
-        self._collection = db.get_collection(COLLECTION)
+        # data/chroma_db/ 這個目錄本身可能已存在（例如只建過 v2 用的 parts_v2 collection），
+        # 光檢查目錄存在不夠，還要確認這個 backend 要用的 collection 真的有建過，
+        # 不然會是很難懂的 chromadb NotFoundError，而不是能指出解法的訊息。
+        try:
+            self._collection = db.get_collection(COLLECTION)
+        except Exception as e:
+            raise RuntimeError(
+                f"{chroma_dir} 存在，但裡面沒有 collection={COLLECTION}，"
+                f"請先執行 python src/rag/embed_chunks.py 建立向量索引"
+            ) from e
 
     # ── 公開 API（跟 retriever.Retriever 相同介面）──────────────
 

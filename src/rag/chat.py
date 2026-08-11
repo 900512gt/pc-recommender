@@ -26,6 +26,21 @@ def _chunk_to_context(chunk: dict) -> str:
         return chunk_to_context_v2(chunk)
     return chunk_to_context(chunk)
 
+
+def _has_substantive_data(chunks: list[dict]) -> bool:
+    """v2 chunk 在 confidence="insufficient" 時，除了 summary 是固定的
+    「評論數量過少，無法產生可靠摘要」外，pros/cons/aspects 全是空的，等於沒有
+    真正的論壇依據可用。實測過這種情況下 LLM 反而會更放心地自己編產品定位、
+    推薦資料庫裡根本沒有的其他型號，卻不標注「非來自論壇評價」——因為它收到的
+    訊號是「有 chunk」，不是「沒資料」。所以這裡要跟「完全沒檢索到 chunk」同樣
+    處理，不能讓 LLM 誤以為手上有可用的論壇資料。
+    （v1 chunk 沒有 confidence 欄位，這裡一律回傳 True，行為不受影響——v1 的
+    low_confidence 型號仍保留 raw_comments 原始評論可用，跟 v2 的空 placeholder
+    是不同情況。）"""
+    if not chunks:
+        return False
+    return not all(c.get("confidence") == "insufficient" for c in chunks)
+
 SYSTEM_PROMPT = """你是一個專門協助台灣使用者選購電腦零件的聊天助理。
 你的回答主要依據台灣論壇（PTT、巴哈姆特）的真實使用者評論，以 RAG 方式提供。
 
@@ -79,7 +94,10 @@ def chat_stream(
     幾百個 token 才開始輸出可見文字，預設值比舊版 gpt-4o 的 800 高很多。
     """
     chunks = retriever.retrieve(user_query, top_k=2)
-    context_text = "\n\n".join(_chunk_to_context(c) for c in chunks)
+    if _has_substantive_data(chunks):
+        context_text = "\n\n".join(_chunk_to_context(c) for c in chunks)
+    else:
+        context_text = ""
     messages = build_messages(user_query, history, context_text)
 
     stream = client.chat.completions.create(
