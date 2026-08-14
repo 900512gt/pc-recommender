@@ -99,7 +99,7 @@ def chat_stream(
     max_completion_tokens 預算包含隱藏的推理 token，簡短問題也可能吃掉
     幾百個 token 才開始輸出可見文字，預設值比舊版 gpt-4o 的 800 高很多。
     """
-    chunks = retriever.retrieve(user_query, top_k=2)
+    chunks = retriever.retrieve(user_query)
     if _has_substantive_data(chunks):
         context_text = "\n\n".join(_chunk_to_context(c) for c in chunks)
     else:
