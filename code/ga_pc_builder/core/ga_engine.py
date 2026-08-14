@@ -67,6 +67,9 @@ class GARecommender:
         self.scorer      = scorer
         self.checker     = checker
         self.usage       = usage
+        # BERT 面向情感：依使用情境切換面向權重（遊戲重效能、工作重保固、文書重CP值）
+        if hasattr(scorer, "set_usage"):
+            scorer.set_usage(usage)
         self.budget      = budget
         self.pop_size    = pop_size
         self.generations = generations
