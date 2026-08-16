@@ -164,28 +164,37 @@ class SentimentScorer:
                     else:
                         self.scores[key] = ptt
 
+    @staticmethod
+    def _best_fuzzy_key(category: str, model: str, table: dict) -> tuple | None:
+        """在 table（key 為 (category, model) tuple）裡找子字串包含關係的候選，
+        取型號字串最長的那個。子字串比對本身是雙向的（"RTX5070" 是
+        "RTX5070Ti" 的子字串），如果直接取第一個命中的候選，字典走訪順序
+        一旦把 "RTX5070" 排在 "RTX5070Ti" 前面，Ti 型號就會被短字串誤攔截、
+        拿到錯的分數——取最長匹配才能確保「更精確的型號名稱」優先命中。"""
+        candidates = [
+            k for k in table
+            if k[0] == category and (
+                model.lower() in k[1].lower() or k[1].lower() in model.lower()
+            )
+        ]
+        if not candidates:
+            return None
+        return max(candidates, key=lambda k: len(k[1]))
+
     def get(self, category: str, model: str, default: float = 0.5) -> float:
         """取得零件的情感分數 [0,1]。介面與舊版完全相同。"""
         key = (category, model)
         if key in self.scores:
             return self.scores[key]
-        for (cat, mod), score in self.scores.items():
-            if cat == category and (
-                model.lower() in mod.lower() or mod.lower() in model.lower()
-            ):
-                return score
-        return default
+        best = self._best_fuzzy_key(category, model, self.scores)
+        return self.scores[best] if best else default
 
     def get_dimensions(self, category: str, model: str) -> dict:
         key = (category, model)
         if key in self.dimensions:
             return dict(self.dimensions[key])
-        for (cat, mod), dims in self.dimensions.items():
-            if cat == category and (
-                model.lower() in mod.lower() or mod.lower() in model.lower()
-            ):
-                return dict(dims)
-        return {d: 0.5 for d in DIMENSIONS}
+        best = self._best_fuzzy_key(category, model, self.dimensions)
+        return dict(self.dimensions[best]) if best else {d: 0.5 for d in DIMENSIONS}
 
     def get_with_custom_weights(self, category: str, model: str,
                                  weights: dict) -> float:
