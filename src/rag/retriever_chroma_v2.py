@@ -8,7 +8,7 @@ v2 的 tfidf/chroma 也是同一份 rag_chunks_v2.jsonl、不同排序方式）�
 跟 retriever_v2.py 完全獨立、互不影響。
 
 檢索策略（三步驟）：
-  1. 呼叫 _extract_query_intents() 用輕量 LLM 從使用者問題裡抽取兩件事：
+  1. 呼叫 _extract_query_intents() 用輕量 LLM 從使用者問題裡抽取三件事：
        a. 提到的型號＋極性（include=在問/在意這個型號、exclude=明確表示
           不要/排除這個型號，例如「除了 X 以外」「不要 X」「X 我已經有了」）。
           取代舊版純字串比對（`model_key in query`）——字串比對只看
@@ -23,10 +23,20 @@ v2 的 tfidf/chroma 也是同一份 rag_chunks_v2.jsonl、不同排序方式）�
           漏掉「獨顯」「PSU」「供電」這類口語/英文縮寫同義詞，也會被
           「8MB」這種數字裡的子字串誤觸發。改用 LLM 判斷後，同義詞跟
           子字串誤判這兩類問題都不再存在。
+       c. is_pc_part_question：這句話跟這 8 類 PC 零件是不是相關（包含
+          廣泛型整機/預算配置問題，例如「五萬預算配一台電腦」也算相關，
+          即使它的 categories 會是空的）。取代原本「語意搜尋跑完才用距離
+          門檻判斷離題」的做法——門檻本身就不可靠（見 MAX_DISTANCE 校準
+          說明：滑鼠/鍵盤這類主題邊緣查詢的 distance 落在 0.60~0.61，
+          跟「模糊但主題內」的合理查詢 0.53~0.61 完全重疊，沒有一個閾值
+          能同時分開兩者），與其事後用距離猜，不如讓同一次 LLM 呼叫直接
+          判斷。is_pc_part_question=False 時，retrieve() 直接短路回傳
+          空清單，連 embedding API 都不用呼叫。
      LLM 抽取失敗（重試後仍失敗，例如網路問題）時，fallback 回舊版邏輯：
      型號用純字串比對（_match_models 保留下來當安全網）、類別用
      CATEGORY_KEYWORDS 關鍵字比對（_guess_category_variants_by_keyword()），
-     寧可退回舊行為、也不讓 retrieve() 直接掛掉。
+     寧可退回舊行為、也不讓 retrieve() 直接掛掉；這條 fallback 路徑沒有
+     is_pc_part_question 可用，離題判斷退回原本的距離門檻機制。
   2. 有 include 型號 → 對每個型號呼叫 get_by_model() 取得「全部」chunk
      （不受 top_k 限制，這裡不篩「還在賣」，指名問特定型號是合理的口碑
      查詢，就算已停產也一樣回答）。沒有 include 型號（不管有沒有
@@ -36,7 +46,11 @@ v2 的 tfidf/chroma 也是同一份 rag_chunks_v2.jsonl、不同排序方式）�
      白名單直接放進查詢的 where 條件）、符合判斷出的類別（同樣放進 where
      條件），依型號去重、湊滿 top_k 個不同型號後各自回傳完整 chunk 組；
      掃描候選時，遇到在 exclude 清單裡的型號直接跳過不收錄，確保使用者
-     明確排除的型號不會透過語意相似度又混進結果。
+     明確排除的型號不會透過語意相似度又混進結果。距離門檻
+     （MAX_DISTANCE／MAX_DISTANCE_CATEGORY_FILTERED）仍然保留、正常運作，
+     負責在「LLM 判斷是 PC 零件問題、但語意搜尋距離太遠」時擋掉低相似度
+     結果——is_pc_part_question 只解決「完全離題」這一種情況，不能取代
+     距離門檻對相似度品質的把關。
 
 前置作業：
   python src/rag/embed_chunks_v2.py   # 建立 data/chroma_db/ 裡的 parts_v2 collection
@@ -227,12 +241,19 @@ class RetrieverChromaV2:
         """
         三步驟流程（見檔頭「檢索策略」說明）：
           1. _extract_query_intents() 用 LLM 同時抽取問題裡提到的型號＋極性
-             （include/exclude）跟所屬零件類別。抽取失敗（回傳 None）時
-             fallback 回舊版邏輯：型號用 _match_models 純字串比對，類別用
-             _guess_category_variants_by_keyword() 關鍵字比對。
-          2. 有 include 型號 → 對每個型號呼叫 get_by_model() 取得「全部」
+             （include/exclude）、所屬零件類別、跟是不是 PC 零件相關問題
+             （is_pc_part_question）。抽取失敗（回傳 None）時 fallback 回
+             舊版邏輯：型號用 _match_models 純字串比對，類別用
+             _guess_category_variants_by_keyword() 關鍵字比對，離題判斷
+             退回距離門檻機制（因為 fallback 路徑沒有 is_pc_part_question）。
+          2. is_pc_part_question=False → 直接回傳空清單，不呼叫
+             _semantic_search、不消耗 embedding API（廣泛型整機/預算問題
+             不算離題，這裡是 True，見檔頭說明）。
+          3. 有 include 型號 → 對每個型號呼叫 get_by_model() 取得「全部」
              chunk，不受 top_k 限制。沒有 include 型號 → 走 _semantic_search。
-          3. exclude 型號清單、判斷出的類別，一起傳給 _semantic_search。
+          4. exclude 型號清單、判斷出的類別，一起傳給 _semantic_search，
+             距離門檻在這裡繼續把關相似度品質（is_pc_part_question 只解決
+             「完全離題」，不能取代距離門檻）。
 
         top_k 只影響語意搜尋路徑：代表要湊到「幾個不同型號」，不是幾則
         chunk。湊到的每個型號都會回傳完整 chunk 組，所以實際回傳的 chunk
@@ -249,12 +270,20 @@ class RetrieverChromaV2:
         intents = self._extract_query_intents(query)
 
         if intents is None:
-            # LLM 抽取失敗（重試後仍失敗），退回舊版純字串／關鍵字比對安全網
+            # LLM 抽取失敗（重試後仍失敗），退回舊版純字串／關鍵字比對安全網。
+            # 沒有 is_pc_part_question 可用，離題判斷交回 _semantic_search
+            # 內部的距離門檻機制（原本的行為）。
             matched = self._match_models(query)
             if matched:
                 return matched
             category_variants = self._guess_category_variants_by_keyword(query)
             return self._semantic_search(query, top_k, category_variants=category_variants)
+
+        if not intents.get("is_pc_part_question", True):
+            # LLM 判斷這句話跟 PC 零件無關（滑鼠、天氣、寫詩、股票…），
+            # 直接短路回傳空清單，不用再跑一次語意搜尋、不消耗 embedding
+            # API。取代原本「語意搜尋跑完才用不可靠的距離門檻猜」的做法。
+            return []
 
         mentioned_models = intents.get("mentioned_models", [])
         include_models = [m["model"] for m in mentioned_models if m.get("polarity") == "include"]
@@ -317,7 +346,7 @@ class RetrieverChromaV2:
         return target_cats
 
     def _extract_query_intents(self, query: str) -> dict | None:
-        """呼叫輕量 LLM，從使用者問題裡同時抽取兩件事：
+        """呼叫輕量 LLM，從使用者問題裡同時抽取三件事：
 
         1. 提到的型號＋極性，取代純字串比對，才能處理「除了 X 以外」
            「不要 X」這類否定語意（字串比對只看提到了沒，看不出使用者是
@@ -327,16 +356,23 @@ class RetrieverChromaV2:
            固定關鍵字清單，量測過準確率只有 65.2%（見
            category_keyword_eval.py），漏掉口語/英文縮寫同義詞、也會被
            數字裡的子字串誤觸發。
+        3. is_pc_part_question：這句話是不是跟這 8 類 PC 零件相關（廣泛型
+           整機/預算配置問題也算相關，即使 categories 會是空的）。取代
+           原本「語意搜尋跑完才用距離門檻判斷離題」的做法——距離門檻本身
+           不可靠（滑鼠/鍵盤這類主題邊緣查詢的 distance 落在 0.60~0.61，
+           跟「模糊但主題內」的合理查詢 0.53~0.61 完全重疊），LLM 直接
+          判斷比事後用距離猜更準，而且能在呼叫 embedding API 之前就短路。
 
         回傳格式：
           {
             "mentioned_models": [{"model": "RTX5070", "polarity": "include"|"exclude"}, ...],
-            "categories": ["GPU", ...]  # canonical 類別，見 CATEGORY_VARIANTS
+            "categories": ["GPU", ...],  # canonical 類別，見 CATEGORY_VARIANTS
+            "is_pc_part_question": true | false
           }
 
         重試後仍失敗（網路問題等）回傳 None，呼叫端（retrieve()）要 fallback
         回 _match_models／_guess_category_variants_by_keyword() 的舊版安全網，
-        不能讓整個檢索直接掛掉。
+        離題判斷退回距離門檻機制，不能讓整個檢索直接掛掉。
         """
         model_names = sorted(self._canonical_model_names.values())
         category_names = sorted(CATEGORY_VARIANTS.keys())
@@ -393,13 +429,14 @@ class RetrieverChromaV2:
                     "type": "array",
                     "items": {"type": "string", "enum": category_names},
                 },
+                "is_pc_part_question": {"type": "boolean"},
             },
-            "required": ["mentioned_models", "categories"],
+            "required": ["mentioned_models", "categories", "is_pc_part_question"],
             "additionalProperties": False,
         }
 
         system_prompt = (
-            "你是一個 PC 零件問題的意圖抽取器。從使用者的問題裡分析兩件事：\n\n"
+            "你是一個 PC 零件問題的意圖抽取器。從使用者的問題裡分析三件事：\n\n"
             "一、mentioned_models：有沒有提到下面型號清單裡的零件型號（清單裡的"
             "簡稱也算，要正規化回正式名稱），並判斷使用者對這個型號的態度：\n"
             "- include：使用者在詢問、比較、考慮、想要這個型號。**兩個型號"
@@ -419,31 +456,47 @@ class RetrieverChromaV2:
             "沒有明確指定風冷或水冷的講法（沒出現「風冷」「水冷」其中一個"
             "字眼），AIR_COOLER 跟 WATER_COOLER 兩個都要放進去，不要只猜"
             "一種。\n\n"
+            "三、is_pc_part_question：這句話跟這 8 類 PC 零件（顯卡/處理器/"
+            "主機板/記憶體/固態硬碟/電源/機殼/散熱器）是不是相關：\n"
+            "- true：明確在問其中一類零件；或是廣泛的整機/預算配置問題"
+            "（例如「五萬預算配一台電腦」「有沒有推薦的零件」）——這種問題"
+            "雖然 categories 會是空陣列（沒有限定單一類別），但**仍然算跟"
+            "PC 零件相關**，is_pc_part_question 要給 true，不要因為"
+            "categories 是空的就跟著給 false。指名型號、型號比較、排除"
+            "型號的問題也都算 true。\n"
+            "- false：跟這 8 類 PC 零件完全無關的問題，例如問滑鼠、鍵盤、"
+            "螢幕這類資料庫沒有的週邊、天氣、寫詩、股票、閒聊等。\n\n"
             "範例：\n"
             "問「RTX4070 跟 RTX5070 該選哪個」→ "
             'mentioned_models=[{"model":"RTX4070","polarity":"include"},'
-            '{"model":"RTX5070","polarity":"include"}], categories=["GPU"]\n'
+            '{"model":"RTX5070","polarity":"include"}], categories=["GPU"], '
+            'is_pc_part_question=true\n'
             "問「請推薦除了 RTX5070 以外的顯卡」→ "
-            'mentioned_models=[{"model":"RTX5070","polarity":"exclude"}], categories=["GPU"]\n'
+            'mentioned_models=[{"model":"RTX5070","polarity":"exclude"}], '
+            'categories=["GPU"], is_pc_part_question=true\n'
             "問「4070 適合拿來打電動嗎」（簡稱要正規化）→ "
-            'mentioned_models=[{"model":"RTX4070","polarity":"include"}], categories=["GPU"]\n'
+            'mentioned_models=[{"model":"RTX4070","polarity":"include"}], '
+            'categories=["GPU"], is_pc_part_question=true\n'
             "問「RTX4070 跟 RTX5070 選一個，但不要跟我推薦 RTX3050」"
             "（比較的兩個都是 include，句尾的排除語氣只影響 RTX3050，"
             "不會影響前面已經判斷為 include 的型號）→ "
             'mentioned_models=[{"model":"RTX4070","polarity":"include"},'
             '{"model":"RTX5070","polarity":"include"},'
-            '{"model":"RTX3050","polarity":"exclude"}], categories=["GPU"]\n'
+            '{"model":"RTX3050","polarity":"exclude"}], categories=["GPU"], '
+            'is_pc_part_question=true\n'
             "問「獨顯選哪張比較好」（口語同義詞，沒有具體型號）→ "
-            'mentioned_models=[], categories=["GPU"]\n'
+            'mentioned_models=[], categories=["GPU"], is_pc_part_question=true\n'
             "問「PSU 推薦」（英文縮寫同義詞）→ "
-            'mentioned_models=[], categories=["PSU"]\n'
+            'mentioned_models=[], categories=["PSU"], is_pc_part_question=true\n'
             "問「電源瓦數怎麼算」「供電穩不穩定」（間接講法，沒直接講「電源」"
             "兩個字，但都是在問 PSU）→ "
-            'mentioned_models=[], categories=["PSU"]\n'
-            "問「五萬預算配一台電腦」（廣泛型問題，不要限定類別）→ "
-            'mentioned_models=[], categories=[]\n'
-            "問「今天天氣如何」（完全離題）→ "
-            'mentioned_models=[], categories=[]\n\n'
+            'mentioned_models=[], categories=["PSU"], is_pc_part_question=true\n'
+            "問「五萬預算配一台電腦」「有沒有推薦的零件」（廣泛型問題，不要"
+            "限定類別，但仍然是 PC 零件相關）→ "
+            'mentioned_models=[], categories=[], is_pc_part_question=true\n'
+            "問「今天天氣如何」「幫我寫一首詩」「台股大盤今天多少」「滑鼠"
+            "選哪個好」（完全跟 PC 零件無關）→ "
+            'mentioned_models=[], categories=[], is_pc_part_question=false\n\n'
             f"已知型號清單：{', '.join(model_list_display)}\n"
             f"已知零件類別：{', '.join(category_list_display)}"
         )
@@ -470,6 +523,7 @@ class RetrieverChromaV2:
                 return {
                     "mentioned_models": data.get("mentioned_models", []),
                     "categories": data.get("categories", []),
+                    "is_pc_part_question": data.get("is_pc_part_question", True),
                 }
             except Exception:
                 if attempt == INTENT_EXTRACT_RETRIES - 1:

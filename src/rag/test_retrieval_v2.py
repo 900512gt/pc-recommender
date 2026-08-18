@@ -222,6 +222,37 @@ def test_chroma_v2_falls_back_to_keyword_matching_when_llm_fails(chroma_v2):
         assert len(broad) > 0
 
 
+# ── is_pc_part_question：LLM 直接判斷離題，取代不可靠的距離門檻 ─────
+# 原本完全離題靠 MAX_DISTANCE 事後判斷，但門檻本身承認不可靠（滑鼠/鍵盤
+# 這類主題邊緣查詢的 distance 落在 0.60~0.61，跟「模糊但主題內」的合理
+# 查詢 0.53~0.61 完全重疊）。2026-08-18 改成讓同一次型號/類別抽取的 LLM
+# 呼叫直接判斷「這句話跟 PC 零件是否相關」，true 才會走語意搜尋。
+
+def test_chroma_v2_rejects_non_pc_part_question_without_embedding_call(chroma_v2):
+    """跟 PC 零件完全無關的問題，LLM 應該判斷 is_pc_part_question=False，
+    retrieve() 直接短路回傳空清單，連 embedding API 都不該呼叫——用 mock
+    _embed_query 斷言沒被呼叫，確認真的有短路，不是繞了一圈才回空清單。"""
+    for query in ["滑鼠選哪個好", "今天天氣如何", "幫我寫一首詩", "台股大盤今天多少"]:
+        with patch.object(
+            chroma_v2, "_embed_query",
+            side_effect=AssertionError(f"「{query}」不該呼叫 embedding API"),
+        ):
+            assert chroma_v2.retrieve(query, top_k=3) == []
+
+
+def test_chroma_v2_broad_build_question_is_still_pc_part_related(chroma_v2):
+    """曾經要特別區分：「五萬預算配一台電腦」這種廣泛型整機問題，
+    categories 會是空陣列（沒有限定單一類別），但不能因此被誤判成離題——
+    它仍然是 PC 零件相關問題，is_pc_part_question 要是 True，正常走語意
+    搜尋、有結果，不能被新加的離題短路擋掉。"""
+    intents = chroma_v2._extract_query_intents("五萬預算配一台電腦")
+    assert intents["categories"] == []
+    assert intents["is_pc_part_question"] is True
+
+    results = chroma_v2.retrieve("五萬預算配一台電腦", top_k=3)
+    assert len(results) > 0
+
+
 # ── 邊界輸入（空字串／top_k 極端值）──────────────────────────────
 # 跟上面那組「已知 bug 情境」不同，這組是純粹的程式邊界值測試（空輸入、
 # 極端數值），不是在還原特定使用者問法。
