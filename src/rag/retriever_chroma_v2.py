@@ -8,25 +8,34 @@ v2 的 tfidf/chroma 也是同一份 rag_chunks_v2.jsonl、不同排序方式）�
 跟 retriever_v2.py 完全獨立、互不影響。
 
 檢索策略（三步驟）：
-  1. 呼叫 _extract_model_intents() 用輕量 LLM 從使用者問題裡抽取「提到的
-     型號＋極性」（include=在問/在意這個型號、exclude=明確表示不要/排除
-     這個型號，例如「除了 X 以外」「不要 X」「X 我已經有了」）。這一步取代
-     舊版純字串比對（`model_key in query`）——字串比對只看「提到了沒」，
-     看不出使用者是想要還是排除，「請推薦除了 5070 以外的顯卡」用字串比對
-     會被誤判成「使用者在問 RTX5070」而回傳它的完整資料，跟使用者真實意圖
-     相反。抽取只能從資料庫已知型號清單（用 JSON schema 的 enum 強制）裡
-     辨認，避免 LLM 生成資料庫沒有的型號字串。
-     LLM 抽取失敗（重試後仍失敗，例如網路問題）時，fallback 回舊版的純
-     字串比對（_match_models 保留下來當安全網，沒有被刪除），寧可退回舊
-     行為、也不讓 retrieve() 直接掛掉。
+  1. 呼叫 _extract_query_intents() 用輕量 LLM 從使用者問題裡抽取兩件事：
+       a. 提到的型號＋極性（include=在問/在意這個型號、exclude=明確表示
+          不要/排除這個型號，例如「除了 X 以外」「不要 X」「X 我已經有了」）。
+          取代舊版純字串比對（`model_key in query`）——字串比對只看
+          「提到了沒」，看不出使用者是想要還是排除，「請推薦除了 5070
+          以外的顯卡」用字串比對會被誤判成「使用者在問 RTX5070」而回傳它
+          的完整資料，跟使用者真實意圖相反。型號只能從資料庫已知清單
+          （用 JSON schema 的 enum 強制）裡辨認，避免 LLM 生成資料庫沒有
+          的型號字串。
+       b. 問題屬於哪個/哪些零件類別（GPU/CPU/MB/...），取代舊版的
+          CATEGORY_KEYWORDS 關鍵字比對——關鍵字比對是人工挑的固定清單，
+          經量化測試（見 category_keyword_eval.py）準確率只有 65.2%，
+          漏掉「獨顯」「PSU」「供電」這類口語/英文縮寫同義詞，也會被
+          「8MB」這種數字裡的子字串誤觸發。改用 LLM 判斷後，同義詞跟
+          子字串誤判這兩類問題都不再存在。
+     LLM 抽取失敗（重試後仍失敗，例如網路問題）時，fallback 回舊版邏輯：
+     型號用純字串比對（_match_models 保留下來當安全網）、類別用
+     CATEGORY_KEYWORDS 關鍵字比對（_guess_category_variants_by_keyword()），
+     寧可退回舊行為、也不讓 retrieve() 直接掛掉。
   2. 有 include 型號 → 對每個型號呼叫 get_by_model() 取得「全部」chunk
      （不受 top_k 限制，這裡不篩「還在賣」，指名問特定型號是合理的口碑
      查詢，就算已停產也一樣回答）。沒有 include 型號（不管有沒有
      exclude）→ 走 _semantic_search 語意搜尋。
-  3. exclude 型號清單往下傳給 _semantic_search：語意搜尋只保留「目前還
-     買得到」的型號（比對 data/ga_database_v2.json，白名單直接放進查詢的
-     where 條件），依型號去重、湊滿 top_k 個不同型號後各自回傳完整 chunk
-     組；掃描候選時，遇到在 exclude 清單裡的型號直接跳過不收錄，確保使用者
+  3. exclude 型號清單、LLM 判斷的類別，一起往下傳給 _semantic_search：
+     語意搜尋只保留「目前還買得到」的型號（比對 data/ga_database_v2.json，
+     白名單直接放進查詢的 where 條件）、符合判斷出的類別（同樣放進 where
+     條件），依型號去重、湊滿 top_k 個不同型號後各自回傳完整 chunk 組；
+     掃描候選時，遇到在 exclude 清單裡的型號直接跳過不收錄，確保使用者
      明確排除的型號不會透過語意相似度又混進結果。
 
 前置作業：
@@ -52,10 +61,29 @@ CHROMA_DIR  = ROOT / "data" / "chroma_db"
 COLLECTION  = "parts_v2"
 EMBED_MODEL = "text-embedding-3-small"
 QUERY_EMBED_RETRIES = 2  # 查詢時是即時回應使用者，重試次數/等待時間比批次建索引短
-INTENT_MODEL = "gpt-4o-mini"  # 只做型號＋極性抽取的前處理，不需要用到主要回答用的 gpt-5.5
+INTENT_MODEL = "gpt-4o-mini"  # 只做型號＋類別抽取的前處理，不需要用到主要回答用的 gpt-5.5
 INTENT_EXTRACT_RETRIES = 2
 SEARCH_POOL_SIZE = 20  # 語意搜尋的起始候選池大小，湊不滿 top_k 個不同型號時會倍增
 MAX_SEARCH_POOL_SIZE = 200  # 候選池倍增的上限，避免湊不滿時無限擴大、無限呼叫 API
+
+# LLM 判斷出的 canonical 類別 → Chroma metadata 裡實際出現過的字串變體。
+# 資料庫的 "category" 欄位不同來源寫入時中英文不一致（GPU/CPU/SSD/RAM
+# 目前只用英文enum，MB/PSU/CASE/AIR_COOLER/WATER_COOLER 中英文都有出現過），
+# where 條件要把該類別可能出現的所有變體都放進 $in 才篩得到、不會漏。
+# 這裡故意不收錄 HDD：這個系統不推薦傳統硬碟，資料庫裡的 HDD chunk 不該
+# 被當成候選，讓 LLM 完全不知道有這個類別存在，問「硬碟推薦」時交給語意
+# 搜尋自己判斷（通常會落在語意最接近的 SSD）。
+CATEGORY_VARIANTS: dict[str, set[str]] = {
+    "GPU":          {"GPU", "顯示卡"},
+    "CPU":          {"CPU", "處理器"},
+    "MB":           {"MB", "主機板"},
+    "RAM":          {"RAM", "記憶體"},
+    "SSD":          {"SSD", "固態硬碟"},
+    "PSU":          {"PSU", "電源"},
+    "CASE":         {"CASE", "機殼"},
+    "AIR_COOLER":   {"AIR_COOLER", "風冷"},
+    "WATER_COOLER": {"WATER_COOLER", "水冷"},
+}
 
 # 語意搜尋 fallback（開放式推薦問題，沒指名型號）預設要湊到幾個不同型號。
 # 依 category 統計 data/ga_database_v2.json 目前「還在賣」的型號數量（2026-08）：
@@ -82,7 +110,21 @@ DEFAULT_SEMANTIC_TOP_K = 3
 #     沒有一個閾值能同時完美分開兩者；寧可保守一點讓少數模糊查詢落回背景知識
 #     回答（chat.py 現在會誠實標注「非來自論壇評價」），也不要冒著把滑鼠/鍵盤
 #     查詢誤配到機殼/顯卡評論、講得煞有介事的風險，所以維持在偏低的 0.6。
+# 這個門檻是在「沒有 category where 篩選」的情況下校準的。
 MAX_DISTANCE = 0.6
+
+# 2026-08-18 補校準：LLM 類別分類上線後（見 _extract_query_intents 的
+# categories），大量開放式問題會先被 where 篩進單一類別的候選池，候選變少、
+# distance 分布會整體右移，用同一個 MAX_DISTANCE 判斷會誤殺合理問題——實測
+# 「獨顯選哪張比較好」這種靠 LLM 才正確辨識出 GPU 類別的口語問題，篩進 GPU
+# 候選池後 top1 distance 是 0.6032，剛好卡在 0.6 門檻外一點點，被誤判離題。
+# 拿 20 條會被正確分類進單一類別的口語/縮寫問題（顯示晶片、PSU、供電、
+# 風冷/水冷、機殼、CPU 溫度…）實測，distance 落在 0.3072~0.6032；同時測了
+# 6 條應該拒答的離題問題（天氣、寫詩、股票、滑鼠、鍵盤），這些問題 LLM 都
+# 正確判斷成沒有類別（categories=[]），不會走到這個門檻，維持用上面沒篩選過
+# 的 MAX_DISTANCE=0.6 判斷（原本的滑鼠/鍵盤邊緣案例，性質沒有改變）。
+# 只有「有類別篩選」這條路徑的門檻要放寬，取 0.6032 加一點安全邊界，訂在 0.62。
+MAX_DISTANCE_CATEGORY_FILTERED = 0.62
 
 # v1 另外有 MIN_GAP（擋「第一名沒有明顯贏過第二名」），v2 這裡刻意不沿用：
 # v2 chunk 的顆粒度是「單一面向」，查「性價比高的主機板」這種問題，本來就會有
@@ -184,29 +226,32 @@ class RetrieverChromaV2:
     def retrieve(self, query: str, top_k: int = DEFAULT_SEMANTIC_TOP_K) -> list[dict]:
         """
         三步驟流程（見檔頭「檢索策略」說明）：
-          1. _extract_model_intents() 用 LLM 抽取問題裡提到的型號＋極性
-             （include/exclude）。抽取失敗（回傳 None）時 fallback 回
-             _match_models 的純字串比對安全網。
+          1. _extract_query_intents() 用 LLM 同時抽取問題裡提到的型號＋極性
+             （include/exclude）跟所屬零件類別。抽取失敗（回傳 None）時
+             fallback 回舊版邏輯：型號用 _match_models 純字串比對，類別用
+             _guess_category_variants_by_keyword() 關鍵字比對。
           2. 有 include 型號 → 對每個型號呼叫 get_by_model() 取得「全部」
              chunk，不受 top_k 限制。沒有 include 型號 → 走 _semantic_search。
-          3. exclude 型號清單傳給 _semantic_search，掃描候選時直接跳過。
+          3. exclude 型號清單、判斷出的類別，一起傳給 _semantic_search。
 
         top_k 只影響語意搜尋路徑：代表要湊到「幾個不同型號」，不是幾則
         chunk。湊到的每個型號都會回傳完整 chunk 組，所以實際回傳的 chunk
         筆數通常會大於 top_k，且不是固定值。預設值見 DEFAULT_SEMANTIC_TOP_K
         的說明（依現行型號數量的 category 分布統計校準過，不是隨便選的）。
         """
-        intents = self._extract_model_intents(query)
+        intents = self._extract_query_intents(query)
 
         if intents is None:
-            # LLM 抽取失敗（重試後仍失敗），退回舊版純字串比對安全網
+            # LLM 抽取失敗（重試後仍失敗），退回舊版純字串／關鍵字比對安全網
             matched = self._match_models(query)
             if matched:
                 return matched
-            return self._semantic_search(query, top_k)
+            category_variants = self._guess_category_variants_by_keyword(query)
+            return self._semantic_search(query, top_k, category_variants=category_variants)
 
-        include_models = [m["model"] for m in intents if m.get("polarity") == "include"]
-        exclude_models = [m["model"] for m in intents if m.get("polarity") == "exclude"]
+        mentioned_models = intents.get("mentioned_models", [])
+        include_models = [m["model"] for m in mentioned_models if m.get("polarity") == "include"]
+        exclude_models = [m["model"] for m in mentioned_models if m.get("polarity") == "exclude"]
 
         if include_models:
             found: list[dict] = []
@@ -219,7 +264,13 @@ class RetrieverChromaV2:
                 found.extend(self.get_by_model(model))
             return found
 
-        return self._semantic_search(query, top_k, exclude_models=exclude_models)
+        category_variants: set[str] = set()
+        for cat in intents.get("categories", []):
+            category_variants |= CATEGORY_VARIANTS.get(cat, set())
+
+        return self._semantic_search(
+            query, top_k, exclude_models=exclude_models, category_variants=category_variants
+        )
 
     def get_by_model(self, model: str) -> list[dict]:
         key = model.lower()
@@ -227,7 +278,7 @@ class RetrieverChromaV2:
 
     def _match_models(self, query: str) -> list[dict]:
         """純字串比對，只看型號字串有沒有出現在問題裡，看不出使用者是
-        想要還是排除這個型號。保留作為 _extract_model_intents() 呼叫 LLM
+        想要還是排除這個型號。保留作為 _extract_query_intents() 呼叫 LLM
         失敗時的安全網，正常情況下 retrieve() 不會走到這裡。"""
         q = query.lower()
         found: list[dict] = []
@@ -246,19 +297,60 @@ class RetrieverChromaV2:
 
         return found
 
-    def _extract_model_intents(self, query: str) -> list[dict] | None:
-        """呼叫輕量 LLM，從使用者問題裡抽取「提到的型號＋極性」，取代純
-        字串比對，才能處理「除了 X 以外」「不要 X」這類否定語意（字串比對
-        只看提到了沒，看不出使用者是想要還是排除）。
+    def _guess_category_variants_by_keyword(self, query: str) -> set[str]:
+        """舊版的關鍵字比對，只在 _extract_query_intents() 呼叫 LLM 失敗時
+        當安全網用。準確率量化見 category_keyword_eval.py（65.2%），會漏掉
+        「獨顯」「PSU」「供電」這類同義詞，也會被「8MB」這種子字串誤觸發，
+        正常情況下 retrieve() 不會走到這裡，改用 LLM 判斷的類別。"""
+        q_lower = query.lower()
+        target_cats: set[str] = set()
+        for kw, cats in CATEGORY_KEYWORDS.items():
+            if kw in q_lower:
+                target_cats |= cats
+        return target_cats
 
-        回傳格式：[{"model": "RTX5070", "polarity": "include" | "exclude"}, ...]
-        只能從資料庫已知型號清單（用 JSON schema 的 enum 強制）裡辨認，避免
-        LLM 生成清單外、查不到資料的字串。
+    def _extract_query_intents(self, query: str) -> dict | None:
+        """呼叫輕量 LLM，從使用者問題裡同時抽取兩件事：
+
+        1. 提到的型號＋極性，取代純字串比對，才能處理「除了 X 以外」
+           「不要 X」這類否定語意（字串比對只看提到了沒，看不出使用者是
+           想要還是排除）。型號只能從資料庫已知型號清單（用 JSON schema
+           的 enum 強制）裡辨認，避免 LLM 生成查不到資料的字串。
+        2. 問題所屬的零件類別，取代 CATEGORY_KEYWORDS 關鍵字比對——後者是
+           固定關鍵字清單，量測過準確率只有 65.2%（見
+           category_keyword_eval.py），漏掉口語/英文縮寫同義詞、也會被
+           數字裡的子字串誤觸發。
+
+        回傳格式：
+          {
+            "mentioned_models": [{"model": "RTX5070", "polarity": "include"|"exclude"}, ...],
+            "categories": ["GPU", ...]  # canonical 類別，見 CATEGORY_VARIANTS
+          }
 
         重試後仍失敗（網路問題等）回傳 None，呼叫端（retrieve()）要 fallback
-        回 _match_models 的純字串比對安全網，不能讓整個檢索直接掛掉。
+        回 _match_models／_guess_category_variants_by_keyword() 的舊版安全網，
+        不能讓整個檢索直接掛掉。
         """
         model_names = sorted(self._canonical_model_names.values())
+        category_names = sorted(CATEGORY_VARIANTS.keys())
+
+        # 只給 canonical 類別名稱（如 "PSU"）LLM 容易漏掉間接講法（例如
+        # 「瓦數」「供電」沒直接講「電源」也是在問 PSU），實測補上同義詞/
+        # 常見講法提示後才穩定辨認出來，做法跟型號清單附簡稱是同樣的道理。
+        CATEGORY_HINTS = {
+            "GPU": "顯示卡/獨顯/顯示晶片",
+            "CPU": "處理器",
+            "MB": "主機板",
+            "RAM": "記憶體",
+            "SSD": "固態硬碟",
+            "PSU": "電源/供電/瓦數/POWER SUPPLY",
+            "CASE": "機殼",
+            "AIR_COOLER": "風冷/散熱器",
+            "WATER_COOLER": "水冷/散熱器",
+        }
+        category_list_display = [
+            f"{cat}（{CATEGORY_HINTS[cat]}）" for cat in category_names
+        ]
 
         # 把別名（例如 "4070" → "rtx4070"）併進清單顯示成「正式名稱（簡稱）」，
         # 不然使用者用簡稱講（"4070 適合打電動嗎"）LLM 可能找不到對應的正式
@@ -290,38 +382,63 @@ class RetrieverChromaV2:
                         "additionalProperties": False,
                     },
                 },
+                "categories": {
+                    "type": "array",
+                    "items": {"type": "string", "enum": category_names},
+                },
             },
-            "required": ["mentioned_models"],
+            "required": ["mentioned_models", "categories"],
             "additionalProperties": False,
         }
 
         system_prompt = (
-            "你是一個型號抽取器。從使用者的問題裡找出有沒有提到下面清單裡的"
-            "零件型號（清單裡的簡稱也算，要正規化回正式名稱），並判斷使用者"
-            "對這個型號的態度：\n"
+            "你是一個 PC 零件問題的意圖抽取器。從使用者的問題裡分析兩件事：\n\n"
+            "一、mentioned_models：有沒有提到下面型號清單裡的零件型號（清單裡的"
+            "簡稱也算，要正規化回正式名稱），並判斷使用者對這個型號的態度：\n"
             "- include：使用者在詢問、比較、考慮、想要這個型號。**兩個型號"
             "放在一起比較、或問『A 跟 B 選哪個』，A 和 B 都算 include**——"
             "使用者是想要這兩個型號的資訊來幫助決定，不是要排除其中一個。\n"
             "- exclude：使用者用明確的排除語氣講到這個型號，且不需要它的"
             "資訊，例如「除了 X 以外」「不要 X」「X 我已經有了」「X 先不看」"
             "「不考慮 X」。單純把兩個型號放在一起比較不算 exclude。\n"
-            "只能使用下面清單裡出現過的正式名稱（不能用簡稱當作 model 的值），"
+            "只能使用型號清單裡出現過的正式名稱（不能用簡稱當作 model 的值），"
             "不要自己生成清單外的名稱。使用者沒提到型號、或提到的不在清單裡，"
-            "就回傳空陣列。\n\n"
+            "mentioned_models 就回傳空陣列。\n\n"
+            "二、categories：這句話明確在問哪個/哪些零件類別（不管有沒有提到"
+            "具體型號都要判斷，例如「顯卡推薦」「獨顯選哪張」「PSU 推薦」"
+            "都算 GPU/PSU）。如果問題是廣泛的整機/多零件問題（例如「五萬"
+            "預算配一台電腦」）、或完全跟零件無關（例如聊天氣），categories"
+            "就回傳空陣列，不要勉強塞一個類別進去。「散熱」「散熱器」這種"
+            "沒有明確指定風冷或水冷的講法（沒出現「風冷」「水冷」其中一個"
+            "字眼），AIR_COOLER 跟 WATER_COOLER 兩個都要放進去，不要只猜"
+            "一種。\n\n"
             "範例：\n"
             "問「RTX4070 跟 RTX5070 該選哪個」→ "
-            '[{"model":"RTX4070","polarity":"include"},{"model":"RTX5070","polarity":"include"}]\n'
+            'mentioned_models=[{"model":"RTX4070","polarity":"include"},'
+            '{"model":"RTX5070","polarity":"include"}], categories=["GPU"]\n'
             "問「請推薦除了 RTX5070 以外的顯卡」→ "
-            '[{"model":"RTX5070","polarity":"exclude"}]\n'
+            'mentioned_models=[{"model":"RTX5070","polarity":"exclude"}], categories=["GPU"]\n'
             "問「4070 適合拿來打電動嗎」（簡稱要正規化）→ "
-            '[{"model":"RTX4070","polarity":"include"}]\n'
+            'mentioned_models=[{"model":"RTX4070","polarity":"include"}], categories=["GPU"]\n'
             "問「RTX4070 跟 RTX5070 選一個，但不要跟我推薦 RTX3050」"
             "（比較的兩個都是 include，句尾的排除語氣只影響 RTX3050，"
             "不會影響前面已經判斷為 include 的型號）→ "
-            '[{"model":"RTX4070","polarity":"include"},'
+            'mentioned_models=[{"model":"RTX4070","polarity":"include"},'
             '{"model":"RTX5070","polarity":"include"},'
-            '{"model":"RTX3050","polarity":"exclude"}]\n\n'
-            f"已知型號清單：{', '.join(model_list_display)}"
+            '{"model":"RTX3050","polarity":"exclude"}], categories=["GPU"]\n'
+            "問「獨顯選哪張比較好」（口語同義詞，沒有具體型號）→ "
+            'mentioned_models=[], categories=["GPU"]\n'
+            "問「PSU 推薦」（英文縮寫同義詞）→ "
+            'mentioned_models=[], categories=["PSU"]\n'
+            "問「電源瓦數怎麼算」「供電穩不穩定」（間接講法，沒直接講「電源」"
+            "兩個字，但都是在問 PSU）→ "
+            'mentioned_models=[], categories=["PSU"]\n'
+            "問「五萬預算配一台電腦」（廣泛型問題，不要限定類別）→ "
+            'mentioned_models=[], categories=[]\n'
+            "問「今天天氣如何」（完全離題）→ "
+            'mentioned_models=[], categories=[]\n\n'
+            f"已知型號清單：{', '.join(model_list_display)}\n"
+            f"已知零件類別：{', '.join(category_list_display)}"
         )
 
         for attempt in range(INTENT_EXTRACT_RETRIES):
@@ -336,14 +453,17 @@ class RetrieverChromaV2:
                     response_format={
                         "type": "json_schema",
                         "json_schema": {
-                            "name": "model_intents",
+                            "name": "query_intents",
                             "schema": schema,
                             "strict": True,
                         },
                     },
                 )
                 data = json.loads(resp.choices[0].message.content)
-                return data.get("mentioned_models", [])
+                return {
+                    "mentioned_models": data.get("mentioned_models", []),
+                    "categories": data.get("categories", []),
+                }
             except Exception:
                 if attempt == INTENT_EXTRACT_RETRIES - 1:
                     return None
@@ -365,7 +485,11 @@ class RetrieverChromaV2:
         raise RuntimeError("unreachable")
 
     def _semantic_search(
-        self, query: str, top_k: int, exclude_models: list[str] | None = None
+        self,
+        query: str,
+        top_k: int,
+        exclude_models: list[str] | None = None,
+        category_variants: set[str] | None = None,
     ) -> list[dict]:
         """OpenAI embedding + Chroma 向量搜尋。
 
@@ -374,22 +498,30 @@ class RetrieverChromaV2:
         收錄過的型號就收錄，同型號的其他 chunk 直接跳過（不提前停止），直到
         湊滿 top_k 個不同型號為止。如果目前候選池掃完仍不夠，就擴大池子
         （n_results 倍增，上限 MAX_SEARCH_POOL_SIZE）重新查詢再掃一次；如果
-        候選池已經沒有 distance 落在 MAX_DISTANCE 內的項目，或池子已經到
-        上限，就如實回傳目前湊到的數量（可能小於 top_k），不放寬距離門檻湊數。
+        候選池已經沒有 distance 落在門檻內的項目，或池子已經到上限，就如實
+        回傳目前湊到的數量（可能小於 top_k），不放寬距離門檻湊數。門檻本身
+        依有沒有套用類別篩選而不同，見 effective_max_distance 的計算。
         湊到的每個型號都用 get_by_model() 取完整 chunk 組，攤平後回傳。
 
-        exclude_models：使用者明確排除的型號（來自 _extract_model_intents()
+        exclude_models：使用者明確排除的型號（來自 _extract_query_intents()
         的 polarity=exclude），掃描候選時遇到就跳過、不收錄進候選型號清單，
         確保這些型號不會透過語意相似度又混進結果——整句話（包含被排除的
         型號名稱）還是會拿去 embedding，候選池本來就可能撈到它的 chunk，
         單靠上層擋掉還不夠。
+
+        category_variants：要放進 Chroma where 條件的 category 字串變體
+        （呼叫端已經把 LLM 判斷出的 canonical 類別、或 fallback 時關鍵字
+        猜出的類別，轉換成 Chroma metadata 實際會出現的字串集合，見
+        CATEGORY_VARIANTS）。這裡不再自己猜，只負責套用。
         """
         exclude_set = {m.lower() for m in (exclude_models or [])}
-        q_lower = query.lower()
-        target_cats: set[str] = set()
-        for kw, cats in CATEGORY_KEYWORDS.items():
-            if kw in q_lower:
-                target_cats |= cats
+        target_cats = category_variants or set()
+
+        # 有類別篩選時候選池變窄，distance 分布會右移，門檻要跟著放寬，
+        # 否則「獨顯選哪張比較好」這種靠 LLM 才辨識出類別的口語問題會被誤殺
+        # （見 MAX_DISTANCE_CATEGORY_FILTERED 校準說明）。沒有類別篩選（廣泛
+        # 型問題、或完全離題）維持用原本沒篩選過的 MAX_DISTANCE。
+        effective_max_distance = MAX_DISTANCE_CATEGORY_FILTERED if target_cats else MAX_DISTANCE
 
         # 「還在賣」白名單直接放進 where 條件（不是查詢後再用 Python 過濾），
         # 避免候選名額被注定會被丟棄的停產型號佔掉。跟類別條件用 $and 合併。
@@ -422,18 +554,18 @@ class RetrieverChromaV2:
             # 讓 LLM 改用背景知識回答並註明「非論壇評價」（見 chat.py SYSTEM_PROMPT）。
             # 只在第一輪、看整批裡最相似的一筆判斷一次。
             if not checked_top1_distance:
-                if distances[0] > MAX_DISTANCE:
+                if distances[0] > effective_max_distance:
                     return []
                 checked_top1_distance = True
 
             # 依型號去重＋湊滿數量是同一個掃描過程：從頭逐筆看，型號第一次
             # 出現才收錄，同型號的後續 chunk 跳過但不停止掃描，直到湊滿
-            # top_k 個不同型號，或遇到超出 MAX_DISTANCE 的項目才停。
+            # top_k 個不同型號，或遇到超出門檻的項目才停。
             matched_models = []
             seen_models: set[str] = set()
             hit_distance_limit = False
             for chunk_id, dist in zip(ids, distances):
-                if dist > MAX_DISTANCE:
+                if dist > effective_max_distance:
                     hit_distance_limit = True
                     break
                 chunk = self.chunk_index.get(chunk_id)
