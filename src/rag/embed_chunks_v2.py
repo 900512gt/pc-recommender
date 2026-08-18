@@ -1,14 +1,12 @@
 """
 embed_chunks_v2.py
 讀取 data/rag_chunks_v2.jsonl（一型號拆成多個語意 chunk），用 OpenAI embedding
-產生向量，寫進本地 Chroma 向量資料庫（data/chroma_db/，跟 v1 共用同一個
-PersistentClient 目錄，但用不同的 collection 名稱 parts_v2，不會互相覆蓋），
-供 retriever_chroma_v2.py 查詢用。
+產生向量，寫進本地 Chroma 向量資料庫（data/chroma_db/，collection 名稱
+parts_v2），供 retriever_chroma_v2.py 查詢用。
 
-跟 embed_chunks.py（v1）的差異：v1 是「一個型號一筆向量」，這裡是「一個 chunk
-一筆向量」，id 用 chunk_id（而不是 model，因為同一型號有多個 chunk，model 不再
-是唯一鍵），embedding 的輸入直接用 chunk 現成的 text 欄位（已經是組好的一段話），
-不需要再另外組合 pros/cons/summary。
+最小單位是「一個 chunk 一筆向量」（不是一個型號一筆），id 用 chunk_id（因為
+同一型號有多個 chunk，model 不是唯一鍵），embedding 的輸入直接用 chunk 現成
+的 text 欄位（已經是組好的一段話），不需要再另外組合 pros/cons/summary。
 
 使用方式（從專案根目錄執行）：
   python src/rag/embed_chunks_v2.py

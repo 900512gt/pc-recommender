@@ -1,8 +1,11 @@
 """
 chunk_text.py
-給 embed_chunks.py / retriever_chroma.py 共用的 chunk → 純文字轉換。
-跟 retriever.py 裡的 _chunk_to_text 邏輯一致，但獨立一份，
-確保 Chroma 那條路徑跟原本的 TF-IDF 路徑完全不互相依賴，方便日後比較。
+零件類別的中英文對照表跟關鍵字分類器。
+
+CATEGORY_KEYWORDS 現在只在 retriever_chroma_v2.py 的
+_guess_category_variants_by_keyword() 當 LLM 類別分類失敗時的 fallback
+安全網使用（正式路徑已經改用 LLM 判斷，準確率量化見 category_keyword_eval.py）；
+retriever_v2.py（TF-IDF 版本）則是主要路徑就在用它做類別過濾。
 """
 
 CATEGORY_ZH = {
@@ -33,42 +36,3 @@ CATEGORY_KEYWORDS = {
     "風冷":   {"風冷", "AIR_COOLER"},
     "散熱":   {"水冷", "風冷", "AIR_COOLER", "WATER_COOLER"},
 }
-
-
-def chunk_to_text(chunk: dict) -> str:
-    """把 chunk 轉成可供 embedding 的純文字。"""
-    parts = [
-        chunk["model"],
-        CATEGORY_ZH.get(chunk["category"], chunk["category"]),
-        chunk.get("summary", ""),
-        " ".join(chunk.get("pros", [])),
-        " ".join(chunk.get("cons", [])),
-        " ".join(chunk.get("comparisons", [])),
-    ]
-    return " ".join(p for p in parts if p)
-
-
-def chunk_to_context(chunk: dict) -> str:
-    """把 chunk 轉成給 LLM 讀的結構化文字（跟 retriever.py 的版本相同）。"""
-    cat = CATEGORY_ZH.get(chunk["category"], chunk["category"])
-    lines = [f"【{chunk['model']} {cat} 社群評價】（共 {chunk['comment_count']} 則評論）"]
-
-    if chunk.get("pros"):
-        lines.append("優點：" + "、".join(chunk["pros"]))
-    if chunk.get("cons"):
-        lines.append("缺點：" + "、".join(chunk["cons"]))
-
-    if chunk.get("aspects"):
-        for k, v in chunk["aspects"].items():
-            lines.append(f"{k}：{v}")
-
-    if chunk.get("comparisons"):
-        lines.append("常被比較：" + "、".join(chunk["comparisons"]))
-
-    if chunk.get("summary"):
-        lines.append(f"整體評價：{chunk['summary']}")
-
-    if chunk.get("low_confidence"):
-        lines.append("（注意：此型號評論數量較少，摘要可信度有限）")
-
-    return "\n".join(lines)

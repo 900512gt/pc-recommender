@@ -58,7 +58,7 @@ python ga_db_manager.py show GPU RTX5080
 ### 中間查表（建立 v2 用的輔助資料）
 - `data/raw/chip_benchmark.json` — 晶片 → PassMark 跑分查表
 - `data/raw/scores.csv` — merge_and_score.py 的中間輸出，給 ga_db_manager.py score 指令讀取
-- `data/rag_chunks.jsonl` — distill_chunks.py 產生的摘要，RAG 檢索用
+- `data/rag_chunks_v2.jsonl` — distill_chunks.py 產生的摘要（一型號拆成多個語意 chunk），RAG 檢索用
 
 ### 原始資料（各模組的私有輸入，不走 data/）
 - `src/database/input/` — coolpc 商品資料、PTT 評論、巴哈評論
@@ -76,10 +76,12 @@ python ga_db_manager.py show GPU RTX5080
 
 ## RAG 系統架構
 
-`distill_chunks.py` 讀取 `src/database/input/` 的 PTT + 巴哈評論，對每個零件型號呼叫 GPT-4o-mini 蒸餾成結構化摘要（pros / cons / aspects / comparisons / summary），寫入 `data/rag_chunks.jsonl`。
+`distill_chunks.py` 讀取 `src/database/input/` 的 PTT + 巴哈評論，對每個零件型號呼叫 GPT-4o-mini 蒸餾成結構化摘要，拆成多個語意 chunk（summary / aspect / pros_cons / comparison），寫入 `data/rag_chunks_v2.jsonl`。`embed_chunks_v2.py` 讀這份檔案，用 `text-embedding-3-small` 建向量索引，寫進 `data/chroma_db/`（collection `parts_v2`）。
 
-`retriever.py` 在 `rag_chunks.jsonl` 上做檢索：優先精確比對型號名稱（含縮寫別名），找不到才用 TF-IDF（字元 n-gram）做語意搜尋。
+`retriever_chroma_v2.py` 是正式環境用的檢索器：先呼叫 `gpt-4o-mini` 從問題裡抽取「提到的型號＋極性（include/exclude）」跟「所屬零件類別」；有指名型號（include）就直接回傳該型號全部 chunk；沒有的話用 OpenAI embedding 查 Chroma 做語意搜尋，依型號去重、動態擴大候選池，湊滿 `top_k` 個不同型號各自回傳完整 chunk 組。`retriever_v2.py`（TF-IDF 版本，不需要 Chroma）是備援 backend，兩者都讀同一份 `rag_chunks_v2.jsonl`。舊版純字串/TF-IDF、不拆語意面向的 v1 實作已經整套移除。
 
-`chat.py` 是純邏輯模組（組 prompt、呼叫 GPT-4o 串流），不含任何介面程式碼，對話歷史最多保留 6 輪。實際對外服務的是 `server.py`：FastAPI + `POST /api/chat`，以 SSE（Server-Sent Events）將逐步累積的文字串流回前端；`GET /health` 供健康檢查。前端目前有兩份：`src/rag/static/widget.js`（可嵌入任意網頁的浮動小工具）與 `ga_test` repo 裡 Next.js 重寫的聊天元件，兩者呼叫同一支 API。
+`chat.py` 是純邏輯模組（組 prompt、呼叫 `gpt-5.5` 串流），不含任何介面程式碼，對話歷史最多保留 6 輪。實際對外服務的是 `server.py`：FastAPI + `POST /api/chat`，以 SSE（Server-Sent Events）將逐步累積的文字串流回前端；`GET /health` 供健康檢查。前端目前有兩份：`src/rag/static/widget.js`（可嵌入任意網頁的浮動小工具）與 `ga_test` repo 裡 Next.js 重寫的聊天元件，兩者呼叫同一支 API。
+
+回歸測試：`python -m pytest src/rag/test_retrieval_v2.py -v`（需要 `.env` 設定 `OPENAI_API_KEY`，會真的呼叫 API）。
 
 > 完整全端架構（含 GA 推薦引擎、API 層、Next.js 前端的細節與已知限制）見 `FULLSTACK_ARCHITECTURE.md`。

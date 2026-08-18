@@ -26,11 +26,11 @@ src/benchmark_collection/
 bahamut_data/
 match_data/bahamut_unmatched.jsonl
 
-# data/ 只需要蒸餾好的 rag_chunks 系列 chunk 檔、Chroma 向量索引、跟 v2 檢索用來判斷
+# data/ 只需要蒸餾好的 rag_chunks_v2.jsonl chunk 檔、Chroma 向量索引、跟 v2 檢索用來判斷
 # 「目前還買得到」的 ga_database_v2.json，其他原始/中間資料不用打包
 # （GA API 不吃這條例外，它讀的是 code/ga_pc_builder/data/ga_database_v2.json 自己的複本）
+# v1（舊版 rag_chunks.jsonl）已經整套移除，不再有例外規則。
 data/*
-!data/rag_chunks.jsonl
 !data/rag_chunks_v2.jsonl
 !data/chroma_db
 !data/chroma_db/**

@@ -266,13 +266,13 @@ def test_has_substantive_data_treats_insufficient_as_empty():
     """單元測試 chat.py 的判斷邏輯，不需要真的呼叫 LLM，秒級跑完。"""
     insufficient_chunk = {"confidence": "insufficient", "chunk_type": "summary", "text": "x"}
     real_chunk = {"confidence": "high", "chunk_type": "summary", "text": "y"}
-    v1_chunk = {"model": "x"}  # 沒有 confidence 欄位，模擬 v1 chunk
+    no_confidence_chunk = {"model": "x"}  # 沒有 confidence 欄位（防禦性案例）
 
     assert _has_substantive_data([real_chunk]) is True
     assert _has_substantive_data([insufficient_chunk]) is False
     assert _has_substantive_data([insufficient_chunk, real_chunk]) is True  # 只要有一個有實質內容就算
     assert _has_substantive_data([]) is False
-    assert _has_substantive_data([v1_chunk]) is True  # v1 chunk 沒有 confidence 欄位，不受影響
+    assert _has_substantive_data([no_confidence_chunk]) is True  # 沒有 confidence 欄位時不受影響
 
 
 if __name__ == "__main__":
