@@ -239,6 +239,13 @@ class RetrieverChromaV2:
         筆數通常會大於 top_k，且不是固定值。預設值見 DEFAULT_SEMANTIC_TOP_K
         的說明（依現行型號數量的 category 分布統計校準過，不是隨便選的）。
         """
+        if not query.strip():
+            # 空字串／純空白：沒有內容可以搜尋，直接回傳空清單。踩過的坑：
+            # OpenAI embeddings API 拒絕空字串輸入（400 BadRequestError），
+            # 不擋在這裡的話，_embed_query() 重試後仍失敗會直接把例外往上
+            # 拋，整個 retrieve() 會掛掉，不是優雅地回傳空結果。
+            return []
+
         intents = self._extract_query_intents(query)
 
         if intents is None:
@@ -514,6 +521,12 @@ class RetrieverChromaV2:
         猜出的類別，轉換成 Chroma metadata 實際會出現的字串集合，見
         CATEGORY_VARIANTS）。這裡不再自己猜，只負責套用。
         """
+        if top_k <= 0:
+            # 邊界值：掃描迴圈是「加進候選後才檢查有沒有湊滿」，top_k=0 時
+            # 這個檢查永遠在加了 1 個之後才觸發，會多回傳 1 個型號、不是
+            # 預期的 0 個。直接在這裡短路，也省一次不必要的 embedding 呼叫。
+            return []
+
         exclude_set = {m.lower() for m in (exclude_models or [])}
         target_cats = category_variants or set()
 

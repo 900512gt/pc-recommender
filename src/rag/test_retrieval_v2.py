@@ -222,6 +222,46 @@ def test_chroma_v2_falls_back_to_keyword_matching_when_llm_fails(chroma_v2):
         assert len(broad) > 0
 
 
+# ── 邊界輸入（空字串／top_k 極端值）──────────────────────────────
+# 跟上面那組「已知 bug 情境」不同，這組是純粹的程式邊界值測試（空輸入、
+# 極端數值），不是在還原特定使用者問法。
+
+def test_chroma_v2_empty_query_returns_empty_list(chroma_v2):
+    """曾經發生：空字串會讓 _embed_query("") 對 OpenAI embeddings API 丟出
+    400 BadRequestError（該 API 明確拒絕空字串輸入），例外沒被接住、直接
+    往上拋，整個 retrieve() 會掛掉，不是優雅回傳空清單。"""
+    assert chroma_v2.retrieve("", top_k=3) == []
+
+
+def test_chroma_v2_whitespace_only_query_returns_empty_list(chroma_v2):
+    """純空白不會讓 embeddings API 報錯（跟真正的空字串不同），但語意上
+    一樣是「沒有內容可以搜尋」，行為應該跟空字串一致，不該真的去跑一次
+    語意搜尋。"""
+    assert chroma_v2.retrieve("   ", top_k=3) == []
+
+
+def test_chroma_v2_top_k_zero_returns_empty_list(chroma_v2):
+    """曾經發生：語意搜尋掃描迴圈是「先加進候選、再檢查有沒有湊滿
+    top_k」，top_k=0 時這個檢查永遠在加了 1 個候選之後才觸發，會多回傳
+    1 個型號，而不是語意上「要 0 個」該有的空清單。"""
+    assert chroma_v2.retrieve("顯卡推薦", top_k=0) == []
+
+
+def test_chroma_v2_negative_top_k_returns_empty_list(chroma_v2):
+    """負數 top_k 沒有合理語意，應該當成「不要任何候選」處理，回傳空清單，
+    而不是報錯或表現出未定義行為。"""
+    assert chroma_v2.retrieve("顯卡推薦", top_k=-1) == []
+
+
+def test_chroma_v2_top_k_larger_than_available_models_degrades_gracefully(chroma_v2):
+    """top_k 超過該類別實際可用的型號數量時，應該盡量湊、如實回傳目前湊到
+    的數量（可能小於 top_k），不能報錯、卡住，也不能為了湊滿數量放寬距離
+    門檻硬湊進不相關的型號。"""
+    results = chroma_v2.retrieve("電源供應器有推薦的型號嗎", top_k=100)
+    models = {c["model"] for c in results}
+    assert 0 < len(models) < 100, f"應該回傳合理數量（少於要求的 100），實際: {len(models)}"
+
+
 def test_has_substantive_data_treats_insufficient_as_empty():
     """單元測試 chat.py 的判斷邏輯，不需要真的呼叫 LLM，秒級跑完。"""
     insufficient_chunk = {"confidence": "insufficient", "chunk_type": "summary", "text": "x"}
