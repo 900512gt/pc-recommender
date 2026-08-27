@@ -3,7 +3,7 @@ manual_qa_eval.py
 跑一組手動設計的測試問題（涵蓋「指名型號」「開放式推薦」「規格/價格查詢」
 「兩型號比較」「離題」五種情境），把每題的檢索結果 + LLM 完整回答整理成一份
 Markdown 報告，方便人工比對有沒有出現舊卡推薦、反問預算、價格幻覺、比較偏頗
-等已知風險（細節見 RAG_STAGE1_GUIDE.md）。
+等已知風險（細節見 docs/RAG_STAGE1_GUIDE.md）。
 
 跟 test_retrieval_v2.py 的差別：那份是 pytest 回歸測試，斷言檢索結果的「型號」
 對不對；這份是跑完整 chat_stream（含 gpt-5.5 生成），人工看「回答」寫得好不好，

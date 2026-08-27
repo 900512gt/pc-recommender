@@ -84,4 +84,5 @@ python ga_db_manager.py show GPU RTX5080
 
 回歸測試：`python -m pytest src/rag/test_retrieval_v2.py -v`（需要 `.env` 設定 `OPENAI_API_KEY`，會真的呼叫 API）。
 
-> 完整全端架構（含 GA 推薦引擎、API 層、Next.js 前端的細節與已知限制）見 `FULLSTACK_ARCHITECTURE.md`。
+> 完整全端架構（含 GA 推薦引擎、API 層、Next.js 前端的細節與已知限制）見 `docs/FULLSTACK_ARCHITECTURE.md`。
+> GA 演算法完整流程（fitness 結構、初始化/交配/突變、相容性檢查、升級建議）見 `docs/GA_ALGORITHM.md`。
