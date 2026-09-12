@@ -5,8 +5,13 @@
 """
 
 import json
+import sys
+from pathlib import Path
 
-with open('data/ga_database_v2.json', 'r', encoding='utf-8') as f:
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from config import DB_PATH
+
+with open(DB_PATH, 'r', encoding='utf-8') as f:
     db = json.load(f)
 
 categories = ['CPU', 'GPU', '記憶體', 'SSD', '電源', '主機板']

@@ -8,8 +8,9 @@ from pathlib import Path
 # ─────────────────────────────────────────────
 _REPO_ROOT = Path(__file__).parent.parent.parent
 
-# 朋友提供的整合資料庫（PTT口碑 + 原價屋規格價格）
-DB_PATH = Path(__file__).parent / "data" / "ga_database_v2.json"
+# 整合資料庫（PTT口碑 + 原價屋規格價格），由 src/benchmark_collection/ 的
+# merge_benchmark.py + merge_tgp.py 產出，直接讀資料管線的輸出而非另存複本。
+DB_PATH = _REPO_ROOT / "data" / "ga_database_v2.json"
 
 # 你的巴哈評論標注資料
 MATCHED_FILES = [

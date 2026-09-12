@@ -1,7 +1,8 @@
 # GA API（api.py，port 8000）
-# config.py 的 MATCHED_FILES 指向 repo 根目錄的 match_data/matched_part*.jsonl
-# （config.py 用 parent.parent.parent 往上找）。合併成單一 repo 後，
-# match_data/ 跟 code/ 天生就是同一個 build context 底下的兄弟目錄，
+# config.py 的 DB_PATH 與 MATCHED_FILES 都指向 repo 根目錄（用 parent.parent.parent
+# 往上找），所以 data/ga_database_v2.json 跟 match_data/matched_part*.jsonl 都必須
+# COPY 進 image，且要放在 WORKDIR 切進 code/ga_pc_builder 之前。合併成單一 repo 後，
+# 這些目錄跟 code/ 天生就是同一個 build context 底下的兄弟目錄，
 # 不用再像分開兩個 repo 時那樣特別注意 context 要指到哪。
 #
 # Build（context 是 repo 根目錄）：
@@ -17,6 +18,7 @@ COPY code/ga_pc_builder/requirements.txt code/ga_pc_builder/requirements.txt
 RUN pip install --no-cache-dir -r code/ga_pc_builder/requirements.txt
 
 COPY code/ga_pc_builder code/ga_pc_builder
+COPY data/ga_database_v2.json data/ga_database_v2.json
 COPY match_data/matched_part1.jsonl match_data/matched_part1.jsonl
 COPY match_data/matched_part2.jsonl match_data/matched_part2.jsonl
 COPY match_data/matched_part3.jsonl match_data/matched_part3.jsonl
