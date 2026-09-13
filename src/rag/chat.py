@@ -79,7 +79,7 @@ def build_messages(user_query: str, history: list[dict], context_text: str) -> l
 def chat_stream(
     user_query: str,
     history: list[dict],
-    retriever,
+    chunks: list[dict],
     client: OpenAI,
     max_tokens: int = 2000,
 ):
@@ -87,12 +87,15 @@ def chat_stream(
     串流版對話 generator：逐步 yield 累積文字。
     history 格式：[{"role": "user"|"assistant", "content": "..."}]
 
+    chunks 由呼叫端先 retrieve 好再傳進來——呼叫端本來就需要那份 chunk（server.py
+    要拿去查佐證評論、manual_qa_eval.py 要拿去列檢索結果），檢索又會呼叫 LLM 抽型號，
+    留在這裡面會變成同一個問題檢索兩次。
+
     MODEL（gpt-5.5）是推理模型：不支援自訂 temperature（只吃預設值 1，
     傳其他值會直接 400），所以這裡不傳 temperature 給 API；另外它的
     max_completion_tokens 預算包含隱藏的推理 token，簡短問題也可能吃掉
     幾百個 token 才開始輸出可見文字，預設值比舊版 gpt-4o 的 800 高很多。
     """
-    chunks = retriever.retrieve(user_query)
     if _has_substantive_data(chunks):
         context_text = "\n\n".join(_chunk_to_context(c) for c in chunks)
     else:

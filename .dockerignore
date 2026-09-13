@@ -31,6 +31,7 @@ match_data/bahamut_unmatched.jsonl
 # v1（舊版 rag_chunks.jsonl）已經整套移除，不再有例外規則。
 data/*
 !data/rag_chunks_v2.jsonl
+!data/rag_evidence.jsonl
 !data/chroma_db
 !data/chroma_db/**
 !data/ga_database_v2.json

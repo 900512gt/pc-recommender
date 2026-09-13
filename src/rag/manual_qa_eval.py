@@ -109,7 +109,7 @@ def ask(query: str, retriever, client: OpenAI) -> dict:
     context_used = _has_substantive_data(chunks)
 
     answer = ""
-    for text in chat_stream(query, [], retriever, client):
+    for text in chat_stream(query, [], chunks, client):
         answer = text
 
     return {

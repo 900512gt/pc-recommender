@@ -1,7 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
-import { RagApiError, streamChat, type ChatMessage } from "../lib/rag-api";
+import {
+  RagApiError,
+  streamChat,
+  type ChatMessage,
+  type SourceComment,
+  type SourceGroup,
+} from "../lib/rag-api";
 
 const EXAMPLES = [
   "RTX5070 值得買嗎？",
@@ -9,9 +15,12 @@ const EXAMPLES = [
   "中階顯示卡推薦",
 ];
 
+/** 畫面上的訊息比送回後端的 ChatMessage 多帶佐證來源，送出前必須剝掉（見 send()）。 */
+type DisplayMessage = ChatMessage & { sources?: SourceGroup[] };
+
 export default function ChatWidget() {
   const [open, setOpen] = useState(false);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<DisplayMessage[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -28,17 +37,23 @@ export default function ChatWidget() {
     if (!q || busy) return;
 
     setError(null);
-    const historySnapshot = messages;
+    // 只送 role/content：後端會把 history 原封不動塞進 OpenAI 的 messages，
+    // 夾帶 sources 這種多餘欄位會讓 API 直接回 400。
+    const historySnapshot = messages.map(({ role, content }) => ({ role, content }));
     setMessages((m) => [...m, { role: "user", content: q }, { role: "assistant", content: "" }]);
     setInput("");
     if (textareaRef.current) textareaRef.current.style.height = "auto";
     setBusy(true);
 
     try {
-      for await (const text of streamChat(q, historySnapshot)) {
+      for await (const event of streamChat(q, historySnapshot)) {
         setMessages((m) => {
           const copy = [...m];
-          copy[copy.length - 1] = { role: "assistant", content: text };
+          const last = copy[copy.length - 1];
+          copy[copy.length - 1] =
+            event.type === "text"
+              ? { ...last, content: event.text }
+              : { ...last, sources: event.groups };
           return copy;
         });
       }
@@ -110,7 +125,10 @@ export default function ChatWidget() {
             )}
 
             {messages.map((m, i) => (
-              <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+              <div
+                key={i}
+                className={`flex flex-col gap-1.5 ${m.role === "user" ? "items-end" : "items-start"}`}
+              >
                 <div
                   className={`max-w-[85%] whitespace-pre-wrap rounded-lg px-3 py-2 text-sm leading-relaxed ${
                     m.role === "user"
@@ -120,6 +138,9 @@ export default function ChatWidget() {
                 >
                   {m.content || (busy && i === messages.length - 1 ? <TypingDots /> : "")}
                 </div>
+                {m.role === "assistant" && m.sources && m.sources.length > 0 && (
+                  <SourcePanel groups={m.sources} />
+                )}
               </div>
             ))}
             <div ref={bottomRef} />
@@ -170,6 +191,85 @@ export default function ChatWidget() {
         )}
       </button>
     </div>
+  );
+}
+
+const SOURCE_LABEL = { ptt: "PTT", bahamut: "巴哈" } as const;
+
+/**
+ * 佐證面板：回答依據了哪些真實論壇評論。
+ * 預設收合——大部分使用者只要答案，想查證的人才會展開。
+ */
+function SourcePanel({ groups }: { groups: SourceGroup[] }) {
+  const [open, setOpen] = useState(false);
+  const total = groups.reduce((sum, g) => sum + g.total, 0);
+
+  return (
+    <div className="max-w-[85%] text-xs">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-1 text-text-muted transition-colors hover:text-text"
+      >
+        <span>依據 {total} 則論壇評論</span>
+        <svg
+          width="10"
+          height="10"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="3"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className={`transition-transform ${open ? "rotate-180" : ""}`}
+        >
+          <path d="m6 9 6 6 6-6" />
+        </svg>
+      </button>
+
+      {open && (
+        <div className="mt-2 flex flex-col gap-3">
+          {groups.map((g) => (
+            <div key={g.model} className="flex flex-col gap-1.5">
+              <p className="text-text-dim">
+                {g.model}
+                <span className="ml-1.5">
+                  節錄 {g.comments.length} / {g.total} 則
+                </span>
+              </p>
+              {g.comments.map((c, i) => (
+                <SourceCard key={i} comment={c} />
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SourceCard({ comment }: { comment: SourceComment }) {
+  // 灰階設計系統不用紅綠：負評用黑底反白凸顯，正評用外框，中立不加框只用暗色文字。
+  const labelStyle =
+    comment.label === "負評"
+      ? "bg-accent text-accent-inverse"
+      : comment.label === "正評"
+        ? "border border-border-strong text-text"
+        : "text-text-dim";
+
+  return (
+    <a
+      href={comment.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="flex flex-col gap-1 rounded-md border border-border p-2 transition-colors hover:border-border-strong"
+    >
+      <div className="flex items-center gap-1.5 text-text-dim">
+        <span className={`rounded-sm px-1 py-px ${labelStyle}`}>{comment.label ?? "未分類"}</span>
+        <span>{SOURCE_LABEL[comment.source]}</span>
+        {comment.date && <span>{comment.date}</span>}
+      </div>
+      <p className="line-clamp-3 leading-relaxed text-text-muted">{comment.content}</p>
+    </a>
   );
 }
 
