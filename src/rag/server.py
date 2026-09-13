@@ -17,7 +17,7 @@ ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(ROOT))
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -30,6 +30,7 @@ from starlette.concurrency import iterate_in_threadpool
 
 from src.rag.chat import chat_stream, _has_substantive_data
 from src.rag.evidence import get_store
+from src.rag.timeline import get_store as timeline_store
 
 load_dotenv(ROOT / ".env")
 
@@ -163,6 +164,20 @@ async def chat_endpoint(request: Request, req: ChatRequest):
             "X-Accel-Buffering": "no",
         },
     )
+
+
+@app.get("/api/model/{model}/timeline")
+@limiter.limit("60/minute")
+def model_timeline(request: Request, model: str):
+    """某型號的逐月口碑走勢，給前端畫時間軸圖表。
+
+    純記憶體查表，不呼叫 OpenAI。資料量不足門檻的型號一律回 404，前端就不畫圖
+    ——寧可不顯示，也不要用三則評論畫出一條看起來很有結論的曲線。
+    """
+    data = timeline_store().get(model)
+    if data is None:
+        raise HTTPException(status_code=404, detail="這個型號沒有足夠的評論可以繪製走勢")
+    return data
 
 
 @app.get("/health")

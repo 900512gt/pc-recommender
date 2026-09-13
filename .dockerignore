@@ -32,6 +32,7 @@ match_data/bahamut_unmatched.jsonl
 data/*
 !data/rag_chunks_v2.jsonl
 !data/rag_evidence.jsonl
+!data/rag_timeline.json
 !data/chroma_db
 !data/chroma_db/**
 !data/ga_database_v2.json
