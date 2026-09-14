@@ -136,7 +136,11 @@ class CompatibilityChecker:
             try:
                 psu_watt = float(psu.specs.get("wattage", 0) or 0)
                 if psu_watt > 0 and estimated  > psu_watt:
-                    penalty += 0.5
+                    # 按缺口比例加重，跟上面散熱壓不住的算法一致。原本不論差多少都
+                    # 固定罰 0.5，導致「350W 配 GT710」跟「350W 配 RTX5080」被視為
+                    # 一樣嚴重，升級建議因此看不出換高階顯卡會讓供電問題惡化。
+                    shortfall = (estimated - psu_watt) / psu_watt
+                    penalty += 0.5 + min(shortfall, 2.0)
                     issues.append(f"電源 {psu_watt}W 餘裕不足（估算 {estimated:.0f}W，建議至少 {int(estimated * 1.1)}W）")
                 elif psu_watt > 0 and psu_watt > estimated * 1.4:
                     penalty += 0.3

@@ -162,16 +162,37 @@ function ResultView({ result }: { result: RecommendResponse }) {
       {result.upgrades.length > 0 && (
         <div className="mt-10">
           <h2 className="text-lg font-semibold">升級建議</h2>
+          <p className="mt-1 text-sm text-text-muted">
+            以剩餘 NT${result.remaining.toLocaleString()} 為上限，可以一起買。
+            效能提升依 PassMark 跑分計算，沒有跑分資料的類別只列規格差異。
+          </p>
           <div className="mt-4 grid gap-4">
             {result.upgrades.map((u, i) => (
               <div key={i} className="rounded-lg border border-border p-4 text-sm">
                 <p className="font-medium">
                   {u.category}：{u.current_name} → {u.upgrade_name}
                 </p>
-                <p className="mt-1 text-text-muted">{u.reason}</p>
-                <p className="mt-2 text-text-dim">
-                  加價 NT${u.cost.toLocaleString()} · {u.benefit}
-                </p>
+                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-text-muted">
+                  <span>加價 NT${u.cost.toLocaleString()}</span>
+                  {u.benchmark_gain_pct !== null && (
+                    <span className="font-medium text-text">
+                      效能 {formatGain(u.benchmark_gain_pct)}
+                    </span>
+                  )}
+                  {Math.abs(u.sentiment_delta) >= 0.01 && (
+                    <span>
+                      論壇口碑 {u.sentiment_delta > 0 ? "+" : ""}
+                      {u.sentiment_delta.toFixed(2)}
+                    </span>
+                  )}
+                </div>
+                {u.spec_changes.length > 0 && (
+                  <ul className="mt-2 list-disc pl-5 text-text-dim">
+                    {u.spec_changes.map((s) => (
+                      <li key={s}>{s}</li>
+                    ))}
+                  </ul>
+                )}
               </div>
             ))}
           </div>
@@ -179,6 +200,15 @@ function ResultView({ result }: { result: RecommendResponse }) {
       )}
     </section>
   );
+}
+
+/**
+ * 跑分差距大的時候百分比會失去可讀性——GT710 換 RTX5080 是 +5667%，
+ * 寫成「約 58 倍」才看得懂。倍數門檻設在 100%（也就是兩倍）。
+ */
+function formatGain(pct: number): string {
+  if (pct >= 100) return `約 ${(1 + pct / 100).toFixed(1)} 倍`;
+  return `+${pct}%`;
 }
 
 function Stat({ label, value }: { label: string; value: string }) {

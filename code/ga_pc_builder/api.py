@@ -138,14 +138,15 @@ def recommend(request: Request, req: RecommendRequest):
         {
             "priority": r["priority"],
             "category": r["category"],
-            "reason": r["reason"],
             "current_name": r["current"].name,
             "current_price": r["current"].price,
             "upgrade_name": r["upgrade"].name,
             "upgrade_price": r["upgrade"].price,
             "cost": r["cost"],
-            "benefit": r["benefit"],
-            "sentiment_improvement": r["sentiment_improvement"],
+            # 只有 CPU/GPU 有 PassMark 跑分，其餘類別是 null，前端不顯示百分比
+            "benchmark_gain_pct": r["benchmark_gain_pct"],
+            "sentiment_delta": r["sentiment_delta"],
+            "spec_changes": r["spec_changes"],
         }
         for r in raw_recs
     ]

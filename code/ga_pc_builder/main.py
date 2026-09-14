@@ -60,9 +60,11 @@ def print_upgrade_recommendations(advisor: UpgradeAdvisor,
         print(f"           NT${rec['current'].price:,}")
         print(f"    升級：{rec['upgrade'].name[:45]}")
         print(f"           NT${rec['upgrade'].price:,} (增加 +NT${rec['cost']:,})")
-        print(f"    效益：{rec['benefit']}")
-        print(f"    理由：{rec['reason']}")
-        print(f"    情感評分：{rec['sentiment_improvement']}")
+        if rec["benchmark_gain_pct"] is not None:
+            print(f"    效能：PassMark 跑分 +{rec['benchmark_gain_pct']}%")
+        for change in rec["spec_changes"]:
+            print(f"    規格：{change}")
+        print(f"    論壇口碑：{rec['sentiment_delta']:+.3f}")
         print()
     
     total_after = build.total_price + total_upgrade_cost
