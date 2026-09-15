@@ -2,12 +2,9 @@
 RAG chunk distillation: 將每個零件型號的 PTT + 巴哈評論，透過 LLM 蒸餾成結構化摘要，
 再拆成多個語意 chunk（summary / aspect / pros_cons / comparison）。
 
-輸出（v2 pipeline）：
+輸出：
   data/distilled_models_v2.jsonl  每行一個型號的完整蒸餾結果＋統計，供除錯用
   data/rag_chunks_v2.jsonl        每行一個 chunk，供 embedding / 檢索用
-
-注意：舊版 data/rag_chunks.jsonl（每型號一個 chunk）維持不動，本檔案不再寫入它，
-只是保留在磁碟上給現行 retriever.py 讀取，直到之後手動切換到 v2。
 
 使用方式（從專案根目錄執行）：
   python src/rag/distill_chunks.py --test                    # 測試單一型號 RTX4070
@@ -41,7 +38,6 @@ load_dotenv()
 ROOT = Path(__file__).parent.parent.parent
 BAHA_FILES = [ROOT / f"src/database/input/baha_comment/matched_part{i}.jsonl" for i in [1, 2, 3]]
 PTT_FILE   = ROOT / "src/database/input/ptt_comment/relevant.jsonl"
-OUTPUT     = ROOT / "data/rag_chunks.jsonl"  # v1 舊輸出，保留不動；新流程改寫下面兩個 v2 檔案，不再寫入這裡
 RAG_CHUNKS_V2        = ROOT / "data/rag_chunks_v2.jsonl"
 DISTILLED_MODELS_V2  = ROOT / "data/distilled_models_v2.jsonl"
 
@@ -400,19 +396,6 @@ def call_llm(client: OpenAI, prompt: str, retries: int = 3) -> dict | None:
                 if attempt < retries - 1:
                     time.sleep(5)
     return None
-
-
-def load_done_models(output_path: Path) -> set[str]:
-    """讀取已處理的型號，支援斷點續跑。（v1 pipeline 用，保留但目前 main() 已不再寫入 OUTPUT。）"""
-    done = set()
-    if output_path.exists():
-        with open(output_path, encoding="utf-8") as f:
-            for line in f:
-                try:
-                    done.add(json.loads(line)["model"])
-                except Exception:
-                    pass
-    return done
 
 
 def load_done_models_v2(path: Path) -> set[str]:

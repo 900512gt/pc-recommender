@@ -55,7 +55,7 @@ GA_DB_FILE  = ROOT / "data" / "ga_database_v2.json"
 # 調高只會誤傷合理查詢，擋不住真正的離題案例。見檔頭「已知限制」的完整說明。
 MIN_RELEVANCE_SCORE = 0.05
 
-# 信心不足時，在 context 文字後面加提醒，跟 v1 chunk_to_context() 的 low_confidence 提示同精神
+# 信心不足時，在 context 文字後面加提醒
 LOW_CONFIDENCE_LEVELS = ("insufficient", "low")
 
 

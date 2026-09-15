@@ -167,3 +167,6 @@ __marimo__/
 # --- 個人測試資料，不進版控 ---
 /dev.sh
 /sample_test.jsonl
+
+# --- manual_qa_eval.py 手動跑的評估報告，本機產物不進版控 ---
+/data/rag_eval_results/

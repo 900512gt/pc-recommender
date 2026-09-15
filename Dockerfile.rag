@@ -1,9 +1,12 @@
 # RAG API（server.py，port 8001）
-# 只打包這支服務實際會 import 到的東西：src/rag/ + data/rag_chunks*.jsonl + data/chroma_db/
+# 只打包這支服務實際會 import 到的東西：src/rag/ + data/rag_chunks_v2.jsonl + data/chroma_db/
 #   + data/ga_database_v2.json。
 #（RAG_RETRIEVER=chroma_v2/v2 需要 rag_chunks_v2.jsonl（chunk 內容本身）、
 #  chroma_db/（chroma_v2 的向量索引）、ga_database_v2.json（v2/chroma_v2 的語意搜尋
 #  fallback 會比對這份「目前還買得到」的商品清單，過濾掉已停產型號，缺了會啟動即報錯）。
+#  rag_evidence.jsonl 是佐證面板要顯示的原始評論（build_evidence.py 從 src/database/input/
+#  離線抽出來的精簡版，那兩包原始資料本身不打包）；缺了只是面板停用，不影響聊天。
+# v1（舊版 rag_chunks.jsonl、純字串/TF-IDF 版本）已經整套移除，不再打包。
 # 資料管線（crawler / filter / database / benchmark_collection）不會被跑進這個 image。
 #
 # Build（context 是 repo 根目錄）：
@@ -19,8 +22,8 @@ COPY src/rag/requirements.txt src/rag/requirements.txt
 RUN pip install --no-cache-dir -r src/rag/requirements.txt
 
 COPY src/rag src/rag
-COPY data/rag_chunks.jsonl data/rag_chunks.jsonl
 COPY data/rag_chunks_v2.jsonl data/rag_chunks_v2.jsonl
+COPY data/rag_evidence.jsonl data/rag_evidence.jsonl
 COPY data/chroma_db data/chroma_db
 COPY data/ga_database_v2.json data/ga_database_v2.json
 

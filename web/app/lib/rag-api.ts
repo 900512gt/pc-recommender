@@ -9,14 +9,40 @@ export interface ChatMessage {
 
 export class RagApiError extends Error {}
 
+/** 回答依據的單則原始論壇評論。 */
+export interface SourceComment {
+  source: "ptt" | "bahamut";
+  model: string;
+  url: string;
+  title: string;
+  content: string;
+  date: string | null;
+  label: string;
+  tag?: string;
+  floor?: string;
+  author?: string;
+}
+
+/** 佐證評論依型號分組。total 是該型號的全部佐證數，comments 只是其中的取樣。 */
+export interface SourceGroup {
+  model: string;
+  total: number;
+  comments: SourceComment[];
+}
+
+export type ChatEvent =
+  | { type: "sources"; groups: SourceGroup[] }
+  | { type: "text"; text: string };
+
 /**
- * POST /api/chat 是 SSE 串流：每個 event 帶累積文字（不是 delta）。
- * yield 的也是累積後的完整字串，呼叫端直接拿來覆蓋畫面上的內容即可。
+ * POST /api/chat 是 SSE 串流：先來一個 sources event（回答依據的原始評論），
+ * 之後是一連串 text event。text 帶的是累積文字（不是 delta），呼叫端直接拿來
+ * 覆蓋畫面上的內容即可。
  */
 export async function* streamChat(
   query: string,
   history: ChatMessage[],
-): AsyncGenerator<string, void, unknown> {
+): AsyncGenerator<ChatEvent, void, unknown> {
   let res: Response;
   try {
     res = await fetch(`${RAG_API_URL}/api/chat`, {
@@ -49,7 +75,7 @@ export async function* streamChat(
       const raw = line.slice(6).trim();
       if (raw === "[DONE]") return;
 
-      let parsed: { text?: string; error?: string };
+      let parsed: { text?: string; error?: string; sources?: SourceGroup[] };
       try {
         parsed = JSON.parse(raw);
       } catch {
@@ -57,7 +83,8 @@ export async function* streamChat(
       }
 
       if (parsed.error) throw new RagApiError(parsed.error);
-      if (parsed.text !== undefined) yield parsed.text;
+      if (parsed.sources !== undefined) yield { type: "sources", groups: parsed.sources };
+      if (parsed.text !== undefined) yield { type: "text", text: parsed.text };
     }
   }
 }

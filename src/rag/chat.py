@@ -13,18 +13,13 @@ sys.path.insert(0, str(ROOT))
 from dotenv import load_dotenv
 from openai import OpenAI
 
-from src.rag.retriever import Retriever, chunk_to_context
-
 load_dotenv(ROOT / ".env")
 
 
 def _chunk_to_context(chunk: dict) -> str:
-    """v1/v2 chunk 格式不同，依 chunk 形狀分派：v2 chunk 有現成的 text 欄位，
-    v1（含 retriever_chroma / retriever_fulltext，三者都讀同一份 v1 格式）沒有，走舊版邏輯。"""
-    if "text" in chunk:
-        from src.rag.retriever_v2 import chunk_to_context_v2
-        return chunk_to_context_v2(chunk)
-    return chunk_to_context(chunk)
+    """把 chunk 轉成給 LLM 讀的文字段落（v2 chunk 格式，有現成的 text 欄位）。"""
+    from src.rag.retriever_v2 import chunk_to_context_v2
+    return chunk_to_context_v2(chunk)
 
 
 def _has_substantive_data(chunks: list[dict]) -> bool:
@@ -34,9 +29,7 @@ def _has_substantive_data(chunks: list[dict]) -> bool:
     推薦資料庫裡根本沒有的其他型號，卻不標注「非來自論壇評價」——因為它收到的
     訊號是「有 chunk」，不是「沒資料」。所以這裡要跟「完全沒檢索到 chunk」同樣
     處理，不能讓 LLM 誤以為手上有可用的論壇資料。
-    （v1 chunk 沒有 confidence 欄位，這裡一律回傳 True，行為不受影響——v1 的
-    low_confidence 型號仍保留 raw_comments 原始評論可用，跟 v2 的空 placeholder
-    是不同情況。）"""
+    （沒有 confidence 欄位的 chunk 一律回傳 True，行為不受影響，是防禦性寫法。）"""
     if not chunks:
         return False
     return not all(c.get("confidence") == "insufficient" for c in chunks)
@@ -86,7 +79,7 @@ def build_messages(user_query: str, history: list[dict], context_text: str) -> l
 def chat_stream(
     user_query: str,
     history: list[dict],
-    retriever: Retriever,
+    chunks: list[dict],
     client: OpenAI,
     max_tokens: int = 2000,
 ):
@@ -94,12 +87,15 @@ def chat_stream(
     串流版對話 generator：逐步 yield 累積文字。
     history 格式：[{"role": "user"|"assistant", "content": "..."}]
 
+    chunks 由呼叫端先 retrieve 好再傳進來——呼叫端本來就需要那份 chunk（server.py
+    要拿去查佐證評論、manual_qa_eval.py 要拿去列檢索結果），檢索又會呼叫 LLM 抽型號，
+    留在這裡面會變成同一個問題檢索兩次。
+
     MODEL（gpt-5.5）是推理模型：不支援自訂 temperature（只吃預設值 1，
     傳其他值會直接 400），所以這裡不傳 temperature 給 API；另外它的
     max_completion_tokens 預算包含隱藏的推理 token，簡短問題也可能吃掉
     幾百個 token 才開始輸出可見文字，預設值比舊版 gpt-4o 的 800 高很多。
     """
-    chunks = retriever.retrieve(user_query)
     if _has_substantive_data(chunks):
         context_text = "\n\n".join(_chunk_to_context(c) for c in chunks)
     else:

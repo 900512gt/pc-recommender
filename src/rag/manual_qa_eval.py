@@ -3,7 +3,7 @@ manual_qa_eval.py
 跑一組手動設計的測試問題（涵蓋「指名型號」「開放式推薦」「規格/價格查詢」
 「兩型號比較」「離題」五種情境），把每題的檢索結果 + LLM 完整回答整理成一份
 Markdown 報告，方便人工比對有沒有出現舊卡推薦、反問預算、價格幻覺、比較偏頗
-等已知風險（細節見 RAG_STAGE1_GUIDE.md）。
+等已知風險（細節見 docs/RAG_STAGE1_GUIDE.md）。
 
 跟 test_retrieval_v2.py 的差別：那份是 pytest 回歸測試，斷言檢索結果的「型號」
 對不對；這份是跑完整 chat_stream（含 gpt-5.5 生成），人工看「回答」寫得好不好，
@@ -13,8 +13,8 @@ Markdown 報告，方便人工比對有沒有出現舊卡推薦、反問預算�
 每題數秒到數十秒，14 題全跑大約幾分鐘。
 
 使用方式（從專案根目錄執行，需要 .env 設定 OPENAI_API_KEY）：
-  python src/rag/manual_qa_eval.py                    # 用正式環境的 chroma_v2 backend
-  python src/rag/manual_qa_eval.py --backend tfidf     # 換成其他 backend 比較
+  python src/rag/manual_qa_eval.py                 # 用正式環境的 chroma_v2 backend
+  python src/rag/manual_qa_eval.py --backend v2     # 換成 TF-IDF 版本比較（Chroma 備援）
 """
 
 import argparse
@@ -84,21 +84,12 @@ def _get_client() -> OpenAI:
 
 
 def _get_retriever(backend: str):
-    if backend == "chroma":
-        from src.rag.retriever_chroma import RetrieverChroma
-        return RetrieverChroma()
-    elif backend == "fulltext":
-        from src.rag.retriever_fulltext import RetrieverFulltext
-        return RetrieverFulltext()
-    elif backend == "v2":
+    if backend == "v2":
         from src.rag.retriever_v2 import RetrieverV2
         return RetrieverV2()
-    elif backend == "chroma_v2":
+    else:
         from src.rag.retriever_chroma_v2 import RetrieverChromaV2
         return RetrieverChromaV2()
-    else:
-        from src.rag.retriever import Retriever
-        return Retriever()
 
 
 def _describe_chunks(chunks: list[dict]) -> str:
@@ -118,7 +109,7 @@ def ask(query: str, retriever, client: OpenAI) -> dict:
     context_used = _has_substantive_data(chunks)
 
     answer = ""
-    for text in chat_stream(query, [], retriever, client):
+    for text in chat_stream(query, [], chunks, client):
         answer = text
 
     return {
@@ -133,7 +124,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--backend", default="chroma_v2",
-        choices=["tfidf", "chroma", "fulltext", "v2", "chroma_v2"],
+        choices=["v2", "chroma_v2"],
         help="要測試的 retriever backend（預設 chroma_v2，跟正式環境一致）",
     )
     parser.add_argument(

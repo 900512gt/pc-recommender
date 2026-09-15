@@ -28,26 +28,33 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 from starlette.concurrency import iterate_in_threadpool
 
-from src.rag.chat import chat_stream
-from src.rag.retriever import Retriever
+from src.rag.chat import chat_stream, _has_substantive_data
+from src.rag.evidence import get_store
 
 load_dotenv(ROOT / ".env")
 
-# 語意搜尋 backend 切換（實驗用）：
-#   RAG_RETRIEVER=tfidf      （預設）TF-IDF 版本，讀 v1 chunk（data/rag_chunks.jsonl，一型號一 chunk）
-#   RAG_RETRIEVER=chroma     OpenAI embedding + Chroma 版本（v1 chunk），需先執行 python src/rag/embed_chunks.py
-#   RAG_RETRIEVER=fulltext   類別全文丟給 LLM 判斷的版本，不需要額外索引
-#   RAG_RETRIEVER=v2         TF-IDF 版本，但讀 v2 chunk（data/rag_chunks_v2.jsonl，一型號拆成多個語意 chunk）
-#   RAG_RETRIEVER=chroma_v2  OpenAI embedding + Chroma 版本（v2 chunk），需先執行 python src/rag/embed_chunks_v2.py
-RETRIEVER_BACKEND = os.environ.get("RAG_RETRIEVER", "tfidf")
+# 語意搜尋 backend 切換：
+#   RAG_RETRIEVER=chroma_v2  （預設，正式環境用這個）OpenAI embedding + Chroma
+#                            版本，讀 v2 chunk（data/rag_chunks_v2.jsonl），
+#                            需先執行 python src/rag/embed_chunks_v2.py
+#   RAG_RETRIEVER=v2         TF-IDF 版本，一樣讀 v2 chunk，不需要額外索引，
+#                            當 Chroma 向量服務出問題時的備援
+# v1（純字串/TF-IDF、不拆語意面向的舊 chunk 格式）已經整套移除，不再是選項。
+RETRIEVER_BACKEND = os.environ.get("RAG_RETRIEVER", "chroma_v2")
 
 # ── App ───────────────────────────────────────────────────────────────────────
 
 app = FastAPI(title="PC 零件口碑 API")
 
+# 正式前端網域固定放行；沒設 CORS_ORIGIN_REGEX 時行為跟以前完全一樣，
+# 所以正式環境不會因為這個機制多開任何來源。
+# 本機開發要讓瀏覽器打得到這支 API，啟動前設：
+#   export CORS_ORIGIN_REGEX='http://(localhost|127\.0\.0\.1):[0-9]+'
+# 用 regex 而不是列舉 port，是因為 Next.js dev 遇到 3000 被佔用會自動換 3001、3002…
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["https://pc-recommender.vercel.app"],
+    allow_origin_regex=os.environ.get("CORS_ORIGIN_REGEX") or None,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -64,7 +71,7 @@ app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 # ── Singletons（首次請求時延遲初始化）────────────────────────────────────────
 
 _client: OpenAI | None = None
-_retriever: Retriever | None = None
+_retriever = None
 
 
 def _get_client() -> OpenAI:
@@ -80,20 +87,12 @@ def _get_client() -> OpenAI:
 def _get_retriever():
     global _retriever
     if _retriever is None:
-        if RETRIEVER_BACKEND == "chroma":
-            from src.rag.retriever_chroma import RetrieverChroma
-            _retriever = RetrieverChroma()
-        elif RETRIEVER_BACKEND == "fulltext":
-            from src.rag.retriever_fulltext import RetrieverFulltext
-            _retriever = RetrieverFulltext()
-        elif RETRIEVER_BACKEND == "v2":
+        if RETRIEVER_BACKEND == "v2":
             from src.rag.retriever_v2 import RetrieverV2
             _retriever = RetrieverV2()
-        elif RETRIEVER_BACKEND == "chroma_v2":
+        else:
             from src.rag.retriever_chroma_v2 import RetrieverChromaV2
             _retriever = RetrieverChromaV2()
-        else:
-            _retriever = Retriever()
         print(f"[RAG] 載入 {len(_retriever.chunks)} 個零件評價 chunk（backend={RETRIEVER_BACKEND}）")
     return _retriever
 
@@ -113,7 +112,10 @@ async def chat_endpoint(request: Request, req: ChatRequest):
     """
     SSE 串流端點。
 
-    每個 event 格式：
+    第一個 event 是本次回答依據的原始評論（依型號分組，可能是空陣列）：
+      data: {"sources": [{"model": ..., "total": N, "comments": [...]}]}\n\n
+
+    之後每個 event 是逐步累積的回答文字：
       data: {"text": "<累積回答>"}\n\n
 
     最終 sentinel：
@@ -125,10 +127,18 @@ async def chat_endpoint(request: Request, req: ChatRequest):
     """
     def _sync_gen():
         try:
+            chunks = _get_retriever().retrieve(req.query)
+
+            # 先把佐證送出去，前端才能在等生成的同時就渲染來源清單。
+            # 資料不足的型號視同沒有論壇依據（chat.py 也是這樣判斷），
+            # 不能讓面板顯示一堆「評論數量過少」的空 chunk 佯裝成佐證。
+            sources = get_store().collect(chunks) if _has_substantive_data(chunks) else []
+            yield f"data: {json.dumps({'sources': sources}, ensure_ascii=False)}\n\n"
+
             for text in chat_stream(
                 req.query,
                 req.history,
-                _get_retriever(),
+                chunks,
                 _get_client(),
             ):
                 payload = json.dumps({"text": text}, ensure_ascii=False)

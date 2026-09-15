@@ -2,6 +2,7 @@
 FastAPI backend — wraps the GA recommendation system.
 Run from this directory:  uvicorn api:app --reload --port 8000
 """
+import os
 import sys
 from pathlib import Path
 
@@ -55,9 +56,14 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="GA PC Recommender", lifespan=lifespan)
 
+# 正式前端網域固定放行；沒設 CORS_ORIGIN_REGEX 時行為跟以前完全一樣。
+# 本機開發要讓瀏覽器打得到這支 API，啟動前設：
+#   export CORS_ORIGIN_REGEX='http://(localhost|127\.0\.0\.1):[0-9]+'
+# 用 regex 而不是列舉 port，是因為 Next.js dev 遇到 3000 被佔用會自動換號。
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["https://pc-recommender.vercel.app"],
+    allow_origin_regex=os.environ.get("CORS_ORIGIN_REGEX") or None,
     allow_methods=["*"],
     allow_headers=["*"],
 )
