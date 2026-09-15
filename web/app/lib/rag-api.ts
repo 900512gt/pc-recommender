@@ -34,6 +34,33 @@ export type ChatEvent =
   | { type: "sources"; groups: SourceGroup[] }
   | { type: "text"; text: string };
 
+export interface TimelineMonth {
+  month: string;
+  positive: number;
+  negative: number;
+  neutral: number;
+}
+
+/** 某型號最近一段時間的逐月口碑走勢。total 是窗口內的評論數，不是歷史總數。 */
+export interface Timeline {
+  model: string;
+  total: number;
+  months: TimelineMonth[];
+}
+
+/**
+ * 評論量不足以畫出有意義走勢的型號，後端會回 404——這是預期結果不是錯誤。
+ * 走勢圖只是輔助資訊，任何失敗都回 null 讓畫面單純不顯示，不影響聊天。
+ */
+export async function fetchTimeline(model: string): Promise<Timeline | null> {
+  try {
+    const res = await fetch(`${RAG_API_URL}/api/model/${encodeURIComponent(model)}/timeline`);
+    return res.ok ? ((await res.json()) as Timeline) : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * POST /api/chat 是 SSE 串流：先來一個 sources event（回答依據的原始評論），
  * 之後是一連串 text event。text 帶的是累積文字（不是 delta），呼叫端直接拿來

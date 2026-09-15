@@ -2,11 +2,13 @@
 
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import {
+  fetchTimeline,
   RagApiError,
   streamChat,
   type ChatMessage,
   type SourceComment,
   type SourceGroup,
+  type Timeline,
 } from "../lib/rag-api";
 
 const EXAMPLES = [
@@ -15,8 +17,8 @@ const EXAMPLES = [
   "中階顯示卡推薦",
 ];
 
-/** 畫面上的訊息比送回後端的 ChatMessage 多帶佐證來源，送出前必須剝掉（見 send()）。 */
-type DisplayMessage = ChatMessage & { sources?: SourceGroup[] };
+/** 畫面上的訊息比送回後端的 ChatMessage 多帶佐證與走勢，送出前必須剝掉（見 send()）。 */
+type DisplayMessage = ChatMessage & { sources?: SourceGroup[]; timelines?: Timeline[] };
 
 export default function ChatWidget() {
   const [open, setOpen] = useState(false);
@@ -40,13 +42,18 @@ export default function ChatWidget() {
     // 只送 role/content：後端會把 history 原封不動塞進 OpenAI 的 messages，
     // 夾帶 sources 這種多餘欄位會讓 API 直接回 400。
     const historySnapshot = messages.map(({ role, content }) => ({ role, content }));
+    // 走勢圖是串流結束後才非同步補上的，這時可能已經有新訊息，所以先記住這則
+    // 助理訊息的位置（送出被 busy 擋著序列化，不會有兩則同時在寫）。
+    const assistantIndex = messages.length + 1;
     setMessages((m) => [...m, { role: "user", content: q }, { role: "assistant", content: "" }]);
     setInput("");
     if (textareaRef.current) textareaRef.current.style.height = "auto";
     setBusy(true);
 
+    let models: string[] = [];
     try {
       for await (const event of streamChat(q, historySnapshot)) {
+        if (event.type === "sources") models = event.groups.map((g) => g.model);
         setMessages((m) => {
           const copy = [...m];
           const last = copy[copy.length - 1];
@@ -54,6 +61,18 @@ export default function ChatWidget() {
             event.type === "text"
               ? { ...last, content: event.text }
               : { ...last, sources: event.groups };
+          return copy;
+        });
+      }
+
+      // 評論量不足的型號會回 null，全部落空就不顯示任何圖。
+      const timelines = (await Promise.all(models.map(fetchTimeline))).filter(
+        (t): t is Timeline => t !== null,
+      );
+      if (timelines.length > 0) {
+        setMessages((m) => {
+          const copy = [...m];
+          if (copy[assistantIndex]) copy[assistantIndex] = { ...copy[assistantIndex], timelines };
           return copy;
         });
       }
@@ -138,6 +157,13 @@ export default function ChatWidget() {
                 >
                   {m.content || (busy && i === messages.length - 1 ? <TypingDots /> : "")}
                 </div>
+                {m.role === "assistant" && m.timelines && m.timelines.length > 0 && (
+                  <div className="flex w-full flex-col gap-3 rounded-md border border-border p-2.5 text-xs">
+                    {m.timelines.map((t) => (
+                      <TimelineChart key={t.model} data={t} />
+                    ))}
+                  </div>
+                )}
                 {m.role === "assistant" && m.sources && m.sources.length > 0 && (
                   <SourcePanel groups={m.sources} />
                 )}
@@ -191,6 +217,98 @@ export default function ChatWidget() {
         )}
       </button>
     </div>
+  );
+}
+
+/**
+ * 口碑走勢圖。主圖是「比例」堆疊而不是數量堆疊——各月討論量相差可到 60 倍
+ * （RTX5080 上市前每月十幾則、上市當月 728 則），照數量畫的話低量月份會細到看不見。
+ * 比例圖看得出風向變化，下方另外附一條討論量帶補回聲量資訊，兩者共用同一組欄位對齊。
+ *
+ * SVG 用 preserveAspectRatio="none" 只在水平方向拉伸；裡面全是矩形，拉伸不會變形，
+ * 文字標籤都放在 SVG 外面用 HTML 排。
+ */
+function TimelineChart({ data }: { data: Timeline }) {
+  const { months } = data;
+  const counts = months.map((m) => m.positive + m.negative + m.neutral);
+  const peak = Math.max(...counts);
+
+  return (
+    <div className="flex flex-col gap-1">
+      <p className="text-text-dim">
+        {data.model}
+        <span className="ml-1.5">近 {months.length} 個月 {data.total.toLocaleString()} 則討論</span>
+      </p>
+
+      <svg
+        viewBox={`0 0 ${months.length} 100`}
+        preserveAspectRatio="none"
+        className="h-11 w-full"
+        role="img"
+        aria-label={`${data.model} 逐月正負評比例`}
+      >
+        {months.map((m, i) => {
+          const total = counts[i];
+          if (total === 0) return null;
+          const neg = (m.negative / total) * 100;
+          const pos = (m.positive / total) * 100;
+          const neu = (m.neutral / total) * 100;
+          return (
+            <g key={m.month}>
+              <title>{`${m.month}　負評 ${m.negative}・正評 ${m.positive}・中立 ${m.neutral}`}</title>
+              <rect x={i + 0.1} y={0} width={0.8} height={neg} fill="var(--text)" />
+              <rect x={i + 0.1} y={neg} width={0.8} height={pos} fill="var(--text-dim)" />
+              <rect x={i + 0.1} y={neg + pos} width={0.8} height={neu} fill="var(--border-strong)" />
+            </g>
+          );
+        })}
+      </svg>
+
+      <svg
+        viewBox={`0 0 ${months.length} 100`}
+        preserveAspectRatio="none"
+        className="h-2.5 w-full"
+        role="img"
+        aria-label="每月討論量"
+      >
+        {months.map((m, i) => {
+          const h = peak ? (counts[i] / peak) * 100 : 0;
+          return (
+            <rect
+              key={m.month}
+              x={i + 0.1}
+              y={100 - h}
+              width={0.8}
+              height={h}
+              fill="var(--border-strong)"
+            >
+              <title>{`${m.month}　共 ${counts[i]} 則`}</title>
+            </rect>
+          );
+        })}
+      </svg>
+
+      <div className="flex justify-between text-text-dim">
+        <span>{months[0].month}</span>
+        <span>{months[months.length - 1].month}</span>
+      </div>
+
+      <div className="flex gap-2.5 text-text-dim">
+        <Swatch color="var(--text)" label="負評" />
+        <Swatch color="var(--text-dim)" label="正評" />
+        <Swatch color="var(--border-strong)" label="中立" />
+        <span className="ml-auto">下方細帶為討論量</span>
+      </div>
+    </div>
+  );
+}
+
+function Swatch({ color, label }: { color: string; label: string }) {
+  return (
+    <span className="flex items-center gap-1">
+      <span className="inline-block h-2 w-2 rounded-xs" style={{ background: color }} />
+      {label}
+    </span>
   );
 }
 
