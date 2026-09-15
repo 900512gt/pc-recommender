@@ -32,6 +32,20 @@ export interface Upgrade {
   spec_changes: string[];
 }
 
+/**
+ * 一個加價級距的升級方案。extra_ratio 0 代表只花沒用完的剩餘預算，
+ * 0.1 / 0.2 代表願意在原預算上多花 10% / 20%。
+ * 該級距完全換不到更好的零件時後端不會回傳，所以陣列可能只有一兩項。
+ */
+export interface UpgradeTier {
+  extra_budget: number;
+  extra_ratio: number;
+  available: number;
+  spent: number;
+  new_total_price: number;
+  upgrades: Upgrade[];
+}
+
 export interface RecommendResponse {
   parts: RecommendedPart[];
   total_price: number;
@@ -42,7 +56,7 @@ export interface RecommendResponse {
     penalty: number;
     issues: string[];
   };
-  upgrades: Upgrade[];
+  upgrade_tiers: UpgradeTier[];
 }
 
 export class GaApiError extends Error {}

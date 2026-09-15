@@ -55,7 +55,7 @@ def test_intel_build_is_not_offered_amd_motherboard():
     assert mbs, f"資料庫裡找不到 {socket} 腳位的主機板"
 
     build = _build_with(catalog, CPU=cpu, 主機板=min(mbs, key=lambda p: p.price))
-    recs = advisor.get_smart_recommendations(build, 90000, 90000 - build.total_price, "工作")
+    recs = advisor.recommend_upgrades(build, 90000 - build.total_price, "工作")
 
     for rec in recs:
         if rec["category"] == "主機板":
@@ -71,7 +71,7 @@ def test_weak_psu_blocks_flagship_gpu():
     weak_psu = min(catalog.get("電源"), key=lambda p: float(p.specs.get("wattage", 0) or 0))
     build = _build_with(catalog, 電源=weak_psu)
 
-    recs = advisor.get_smart_recommendations(build, 90000, 90000 - build.total_price, "遊戲")
+    recs = advisor.recommend_upgrades(build, 90000 - build.total_price, "遊戲")
     gpu_rec = next((r for r in recs if r["category"] == "GPU"), None)
 
     if gpu_rec is not None:
@@ -88,15 +88,34 @@ def test_recommendations_fit_remaining_budget():
     build = _build_with(catalog)
     remaining = 50000 - build.total_price
 
-    recs = advisor.get_smart_recommendations(build, 50000, remaining, "遊戲")
+    recs = advisor.recommend_upgrades(build, remaining, "遊戲")
     assert sum(r["cost"] for r in recs) <= remaining
+
+
+def test_higher_tier_spends_more_and_stays_within_budget():
+    """加價級距的兩個基本性質：花得越多換得越好，且每一級都不超出該級可動用的錢。"""
+    catalog, advisor = _setup()
+    build = _build_with(catalog)
+    budget = 60000
+    remaining = budget - build.total_price
+
+    tiers = advisor.recommend_tiers(build, budget, remaining, "遊戲")
+    assert tiers, "這個配置應該要有升級空間"
+
+    for tier in tiers:
+        assert tier["spent"] <= tier["available"], (
+            f"加價 {tier['extra_ratio']:.0%} 這級花了 {tier['spent']} 超過可動用的 {tier['available']}"
+        )
+
+    spends = [t["spent"] for t in tiers]
+    assert spends == sorted(spends), f"加價越多花費應該越高，實際是 {spends}"
 
 
 def test_no_invented_performance_numbers():
     """沒有 PassMark 跑分的類別不准回報效能提升百分比。"""
     catalog, advisor = _setup()
     build = _build_with(catalog)
-    recs = advisor.get_smart_recommendations(build, 90000, 90000 - build.total_price, "遊戲")
+    recs = advisor.recommend_upgrades(build, 90000 - build.total_price, "遊戲")
 
     for rec in recs:
         has_benchmark = rec["upgrade"].specs.get("benchmark")

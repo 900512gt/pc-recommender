@@ -48,6 +48,11 @@ USAGE_PRIORITY: dict[str, tuple[str, ...]] = {
 }
 DEFAULT_PRIORITY = ("CPU", "記憶體", "GPU", "SSD", "主機板", "電源")
 
+# 加價級距。GA 會把預算用到很滿（45,000 的預算通常只剩一兩千），光靠剩餘預算
+# 幾乎只換得動電源或主機板，顯卡、CPU 永遠碰不到。所以除了「不加價」之外，
+# 另外算「如果願意多花 10% / 20% 能換到什麼」，讓使用者自己決定值不值得。
+BUDGET_TIERS: tuple[float, ...] = (0.0, 0.10, 0.20)
+
 
 @dataclass
 class UpgradeOption:
@@ -95,16 +100,45 @@ class UpgradeAdvisor:
         self.scorer = scorer
         self.checker = checker
 
-    def get_smart_recommendations(
+    def recommend_tiers(
         self,
         build: Build,
         budget: int,
         remaining_budget: int,
         usage: str = "遊戲",
     ) -> list[dict]:
+        """分成幾個加價級距回傳升級方案，讓使用者看得到「多花一點能換到什麼」。
+
+        每一級可動用的錢 = 原本沒花完的剩餘預算 + 願意多加的金額。沒有任何可行
+        升級的級距會被略過，不會回傳空殼。
+        """
+        tiers = []
+        for ratio in BUDGET_TIERS:
+            extra = int(budget * ratio)
+            available = remaining_budget + extra
+            upgrades = self.recommend_upgrades(build, available, usage)
+            if not upgrades:
+                continue
+            spent = sum(u["cost"] for u in upgrades)
+            tiers.append({
+                "extra_budget": extra,
+                "extra_ratio": ratio,
+                "available": available,
+                "spent": spent,
+                "new_total_price": build.total_price + spent,
+                "upgrades": upgrades,
+            })
+        return tiers
+
+    def recommend_upgrades(
+        self,
+        build: Build,
+        available: int,
+        usage: str = "遊戲",
+    ) -> list[dict]:
         """每個類別挑一個最值得的升級，依用途優先順序回傳。
 
-        累計花費不超過剩餘預算，所以整份清單是可以一起買的，不是各自獨立的選項。
+        累計花費不超過 available，所以整份清單是可以一起買的，不是各自獨立的選項。
         """
         priority = USAGE_PRIORITY.get(usage, DEFAULT_PRIORITY)
 
@@ -114,7 +148,7 @@ class UpgradeAdvisor:
             current = build.parts.get(category)
             if not current:
                 continue
-            option = self._best_upgrade(category, current, build, remaining_budget - spent)
+            option = self._best_upgrade(category, current, build, available - spent)
             if option is None:
                 continue
             recommendations.append({
