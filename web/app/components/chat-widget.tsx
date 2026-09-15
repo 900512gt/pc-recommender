@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import Link from "next/link";
 import {
   fetchTimeline,
   RagApiError,
@@ -165,7 +166,10 @@ export default function ChatWidget() {
                   </div>
                 )}
                 {m.role === "assistant" && m.sources && m.sources.length > 0 && (
-                  <SourcePanel groups={m.sources} />
+                  <>
+                    <ModelLinks models={m.sources.map((g) => g.model)} />
+                    <SourcePanel groups={m.sources} />
+                  </>
                 )}
               </div>
             ))}
@@ -309,6 +313,28 @@ function Swatch({ color, label }: { color: string; label: string }) {
       <span className="inline-block h-2 w-2 rounded-xs" style={{ background: color }} />
       {label}
     </span>
+  );
+}
+
+/**
+ * 導向型號詳情頁。走勢圖與雷達圖刻意不畫在這裡——聊天視窗只有 384px 寬，
+ * 18 根柱子的時間軸與五軸雷達圖在這個寬度下都看不清楚，那些留給有整頁空間的
+ * /parts/[型號]。聊天室負責回答問題並指路。
+ */
+function ModelLinks({ models }: { models: string[] }) {
+  if (models.length === 0) return null;
+  return (
+    <div className="flex max-w-[85%] flex-wrap gap-1.5">
+      {models.map((model) => (
+        <Link
+          key={model}
+          href={`/parts/${encodeURIComponent(model)}`}
+          className="rounded-sm border border-border px-2 py-0.5 text-xs text-text-muted transition-colors hover:border-border-strong hover:text-text"
+        >
+          {model} 完整分析 →
+        </Link>
+      ))}
+    </div>
   );
 }
 

@@ -61,6 +61,36 @@ export async function fetchTimeline(model: string): Promise<Timeline | null> {
   }
 }
 
+export interface Aspect {
+  name: string;
+  score: number;
+  positive: number;
+  negative: number;
+  samples: number;
+  /** 樣本數足夠、分數才可信。不足時 score 仍有值但不該拿來畫圖。 */
+  sufficient: boolean;
+}
+
+export interface ModelAspects {
+  model: string;
+  review_count: number;
+  aspects: Aspect[];
+}
+
+/**
+ * 五大面向口碑分數（效能／溫控／噪音／保固／CP值）。
+ * 可信面向不到三個的型號後端會回 404——三個軸才畫得出多邊形。
+ * 雷達圖只是輔助資訊，失敗一律回 null 讓畫面單純不顯示。
+ */
+export async function fetchAspects(model: string): Promise<ModelAspects | null> {
+  try {
+    const res = await fetch(`${RAG_API_URL}/api/model/${encodeURIComponent(model)}/aspects`);
+    return res.ok ? ((await res.json()) as ModelAspects) : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * POST /api/chat 是 SSE 串流：先來一個 sources event（回答依據的原始評論），
  * 之後是一連串 text event。text 帶的是累積文字（不是 delta），呼叫端直接拿來
@@ -114,4 +144,63 @@ export async function* streamChat(
       if (parsed.text !== undefined) yield { type: "text", text: parsed.text };
     }
   }
+}
+
+// ── 型號頁 ────────────────────────────────────────────────────────────────────
+
+export interface ModelIndexRow {
+  model: string;
+  category: string;
+  review_count: number;
+  label_distribution: Record<string, number>;
+  confidence: string | null;
+  price: number | null;
+  benchmark: number | null;
+}
+
+export interface ModelDetail {
+  model: string;
+  category: string;
+  summary: string | null;
+  confidence: string | null;
+  review_count: number;
+  label_distribution: Record<string, number>;
+  source_distribution: Record<string, number>;
+  data_start_date: string | null;
+  data_end_date: string | null;
+  aspects: { aspect: string; text: string }[];
+  pros_cons: string[];
+  comparisons: string[];
+  /** 已停產的型號在原價屋清單上找不到，會是 null——口碑仍然顯示，只是沒有價格。 */
+  listing: {
+    name: string | null;
+    price: number | null;
+    benchmark: number | null;
+    brand: string | null;
+  } | null;
+}
+
+async function getJson<T>(path: string): Promise<T | null> {
+  try {
+    const res = await fetch(`${RAG_API_URL}${path}`);
+    return res.ok ? ((await res.json()) as T) : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchModelIndex(): Promise<ModelIndexRow[]> {
+  const data = await getJson<{ models: ModelIndexRow[] }>("/api/models");
+  return data?.models ?? [];
+}
+
+export function fetchModelDetail(model: string): Promise<ModelDetail | null> {
+  return getJson<ModelDetail>(`/api/model/${encodeURIComponent(model)}`);
+}
+
+export async function fetchModelComments(model: string): Promise<SourceComment[]> {
+  const data = await getJson<{ comments: SourceComment[] }>(
+    `/api/model/${encodeURIComponent(model)}/comments`,
+  );
+  return data?.comments ?? [];
 }
