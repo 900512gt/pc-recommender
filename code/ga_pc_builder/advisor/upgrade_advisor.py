@@ -72,6 +72,28 @@ class UpgradeAdvisor:
         
         return upgrades
     
+    def _real_perf_boost(self, category, current, upgrade) -> float:
+        """計算真實效能提升百分比。
+        有 benchmark 的類別（CPU/GPU/記憶體）用 benchmark 差；
+        沒有 benchmark 的（SSD/主機板/電源）用規格或價格級距代理。
+        注意：不使用情感分數——情感是口碑，不是效能。"""
+        cur_b = float(current.specs.get("benchmark", 0) or 0)
+        up_b = float(upgrade.specs.get("benchmark", 0) or 0)
+        if cur_b > 0 and up_b > 0:
+            return (up_b - cur_b) / cur_b * 100.0
+
+        # SSD：用讀取速度差
+        if category == "SSD":
+            cur_r = float(current.specs.get("read_mbs", 0) or 0)
+            up_r = float(upgrade.specs.get("read_mbs", 0) or 0)
+            if cur_r > 0 and up_r > 0:
+                return (up_r - cur_r) / cur_r * 100.0
+
+        # 其他沒 benchmark 的：價格級距僅作粗略代理，回傳較保守的估計
+        if current.price > 0:
+            return (upgrade.price - current.price) / current.price * 100.0 * 0.3
+        return 0.0
+
     def _find_upgrades_for_category(self,
                                     category: str,
                                     current: Part,
@@ -123,10 +145,12 @@ class UpgradeAdvisor:
             ):
                 continue
             
-            # 計算性能提升（使用情感評分作為代理）
+            # 計算真實性能提升（用 benchmark/規格差，非情感分數）
+            perf_boost = self._real_perf_boost(category, current, candidate)
+            # 情感差另外算，只作為「口碑變化」參考，不當效能
             current_sentiment = self.scorer.get(category, current.short_name)
             candidate_sentiment = self.scorer.get(category, candidate.short_name)
-            perf_boost = (candidate_sentiment - current_sentiment) * 100
+            sentiment_delta = (candidate_sentiment - current_sentiment) * 100
             
             # 生成升級理由
             reason = self._generate_upgrade_reason(category, current, candidate, perf_boost)
@@ -280,7 +304,8 @@ class UpgradeAdvisor:
                 "upgrade": best_option.upgrade_part,
                 "cost": best_option.price_increase,
                 "benefit": benefit,
-                "sentiment_improvement": f"{best_option.performance_boost:+.2f}%"
+                # performance_boost 現在是真實效能提升(benchmark/規格差)
+                "sentiment_improvement": f"{best_option.performance_boost:+.1f}% 效能"
             })
             
             priority += 1

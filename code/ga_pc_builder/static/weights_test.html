@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>滑桿功能本機測試頁</title>
+<style>
+  body { font-family: "Microsoft JhengHei", sans-serif; max-width: 720px; margin: 30px auto; padding: 0 16px; color: #222; }
+  h1 { font-size: 20px; }
+  .note { background: #fff8e1; border: 1px solid #f0d878; padding: 10px 14px; border-radius: 6px; font-size: 13px; margin-bottom: 20px; }
+  fieldset { border: 1px solid #ddd; border-radius: 8px; padding: 14px 18px; margin-bottom: 16px; }
+  legend { font-weight: bold; padding: 0 6px; }
+  label { display: block; margin: 10px 0 4px; font-size: 14px; }
+  input[type=number], select { padding: 6px 8px; font-size: 14px; width: 160px; }
+  .slider-row { display: flex; align-items: center; gap: 10px; }
+  .slider-row input[type=range] { flex: 1; }
+  .slider-row .val { width: 34px; text-align: right; font-variant-numeric: tabular-nums; }
+  .weights-toggle { margin-bottom: 8px; }
+  button { margin-top: 8px; padding: 10px 24px; font-size: 15px; cursor: pointer; background: #2d6cdf; color: #fff; border: none; border-radius: 6px; }
+  button:disabled { background: #999; cursor: not-allowed; }
+  #status { margin: 14px 0; font-size: 14px; color: #555; }
+  #result { display: none; }
+  table { border-collapse: collapse; width: 100%; margin-top: 10px; font-size: 13px; }
+  th, td { border: 1px solid #ddd; padding: 6px 8px; text-align: left; }
+  th { background: #f4f4f4; }
+  .weights-box { display: flex; gap: 16px; flex-wrap: wrap; background: #f0f6ff; border-radius: 6px; padding: 10px 14px; margin: 10px 0; font-size: 13px; }
+  .weights-box b { display: block; }
+  .err { color: #c0392b; font-weight: bold; }
+</style>
+</head>
+<body>
+
+<h1>GA 推薦系統 — 滑桿功能本機測試頁</h1>
+<div class="note">
+  這是暫時的測試用頁面，不是正式前端（正式介面是 Jimmy 的 Next.js）。用法：<br>
+  在 <code>ga_pc_builder</code> 資料夾執行 <code>uvicorn api:app --reload --port 8000</code>，然後瀏覽器開
+  <code>http://localhost:8000/static/weights_test.html</code>（跟這頁同源，不會被 CORS 擋）。
+</div>
+
+<fieldset>
+  <legend>基本設定</legend>
+  <label>預算 (NT$)</label>
+  <input type="number" id="budget" value="60000" min="10000" step="1000">
+
+  <label>用途</label>
+  <select id="usage">
+    <option value="遊戲">遊戲</option>
+    <option value="工作">工作</option>
+    <option value="一般文書">一般文書</option>
+  </select>
+
+  <label>散熱偏好</label>
+  <select id="cooling">
+    <option value="auto">自動</option>
+    <option value="風冷">風冷</option>
+    <option value="水冷">水冷</option>
+  </select>
+</fieldset>
+
+<fieldset>
+  <legend>效能 / 口碑 / CP值滑桿</legend>
+  <label class="weights-toggle">
+    <input type="checkbox" id="useWeights"> 啟用自訂滑桿（不勾選 = 用該用途的預設權重）
+  </label>
+
+  <label>效能相對重要程度</label>
+  <div class="slider-row">
+    <input type="range" id="perf" min="0" max="100" value="50">
+    <span class="val" id="perfVal">50</span>
+  </div>
+
+  <label>口碑相對重要程度</label>
+  <div class="slider-row">
+    <input type="range" id="sent" min="0" max="100" value="50">
+    <span class="val" id="sentVal">50</span>
+  </div>
+
+  <label>CP值相對重要程度</label>
+  <div class="slider-row">
+    <input type="range" id="cp" min="0" max="100" value="50">
+    <span class="val" id="cpVal">50</span>
+  </div>
+</fieldset>
+
+<button id="submitBtn" onclick="runRecommend()">產生推薦</button>
+<div id="status"></div>
+
+<div id="result">
+  <h2>實際套用的 fitness 權重（換算後）</h2>
+  <div class="weights-box" id="weightsBox"></div>
+
+  <h2>推薦結果</h2>
+  <div id="summary"></div>
+  <table>
+    <thead><tr><th>類別</th><th>型號</th><th>價格</th><th>情感分</th></tr></thead>
+    <tbody id="partsBody"></tbody>
+  </table>
+</div>
+
+<script>
+["perf", "sent", "cp"].forEach(id => {
+  const slider = document.getElementById(id);
+  const val = document.getElementById(id + "Val");
+  slider.addEventListener("input", () => val.textContent = slider.value);
+});
+
+async function runRecommend() {
+  const btn = document.getElementById("submitBtn");
+  const statusEl = document.getElementById("status");
+  const resultEl = document.getElementById("result");
+  resultEl.style.display = "none";
+  statusEl.textContent = "";
+  btn.disabled = true;
+  btn.textContent = "計算中（約8秒，跑滿300代GA）...";
+
+  const body = {
+    budget: parseInt(document.getElementById("budget").value, 10),
+    usage: document.getElementById("usage").value,
+    cooling_prefer: document.getElementById("cooling").value,
+  };
+  if (document.getElementById("useWeights").checked) {
+    body.weights = {
+      perf: parseFloat(document.getElementById("perf").value),
+      sent: parseFloat(document.getElementById("sent").value),
+      cp: parseFloat(document.getElementById("cp").value),
+    };
+  }
+
+  try {
+    const res = await fetch("/api/recommend", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      statusEl.innerHTML = `<span class="err">錯誤 ${res.status}：${data.detail || JSON.stringify(data)}</span>`;
+      return;
+    }
+
+    const w = data.resolved_weights;
+    document.getElementById("weightsBox").innerHTML = `
+      <div><b>效能 w_perf</b>${w.perf}</div>
+      <div><b>口碑 w_sent</b>${w.sent}</div>
+      <div><b>CP值 w_cp</b>${w.cp}</div>
+      <div><b>預算 w_budget</b>${w.budget}</div>
+      <div><b>相容性 w_compat</b>${w.compat}</div>
+    `;
+
+    document.getElementById("summary").innerHTML =
+      `總價：NT$ ${data.total_price.toLocaleString()}
+       預算：NT$ ${data.budget.toLocaleString()}
+       剩餘：NT$ ${data.remaining.toLocaleString()}
+       相容性：${data.compatibility.ok ? "✅ 無問題" : "⚠️ " + data.compatibility.issues.join("、")}`;
+
+    document.getElementById("partsBody").innerHTML = data.parts.map(p =>
+      `<tr><td>${p.category}</td><td>${p.name}</td><td>NT$${p.price.toLocaleString()}</td><td>${p.score}</td></tr>`
+    ).join("");
+
+    resultEl.style.display = "block";
+    statusEl.textContent = "";
+  } catch (e) {
+    statusEl.innerHTML = `<span class="err">請求失敗：${e}（確認 uvicorn 有在跑、port是8000）</span>`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "產生推薦";
+  }
+}
+</script>
+
+</body>
+</html>

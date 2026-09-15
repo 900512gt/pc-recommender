@@ -120,67 +120,7 @@ class CompatibilityChecker:
             except (ValueError, TypeError):
                 pass
 
-        # 估算功耗 ↔ 電源
-        if psu:
-            # 銅牌懲罰
-            rating = str(psu.specs.get("rating", "")).strip()
-            if "銅" in rating:
-                penalty += 0.3
-                issues.append("電源為銅牌，建議至少金牌")
-
-            estimated = self._estimate_watt(cpu, gpu)
-            if psu_tier == "upgrade":
-                estimated *= 1.15
-            elif psu_tier == "flagship":
-                estimated *= 1.30
-            try:
-                psu_watt = float(psu.specs.get("wattage", 0) or 0)
-                if psu_watt > 0 and estimated  > psu_watt:
-                    penalty += 0.5
-                    issues.append(f"電源 {psu_watt}W 餘裕不足（估算 {estimated:.0f}W，建議至少 {int(estimated * 1.1)}W）")
-                elif psu_watt > 0 and psu_watt > estimated * 1.4:
-                    penalty += 0.3
-                    issues.append(f"電源 {psu_watt}W 過大（估算 {estimated:.0f}W）浪費預算")
-            except (ValueError, TypeError):
-                pass
+        # 電源評分（夠用/過度配置/用料）已統一由 policies/psu_policy.py 負責，
+        # 此處不再重複檢查，避免同一問題被兩個模組各扣一次分。
 
         return penalty, issues
-
-    @staticmethod
-    def _estimate_watt(cpu, gpu) -> float:
-        cpu_tdp    = float(cpu.specs.get("tdp", 65) or 65) if cpu else 65
-        system_pwr = 80
-
-        # K/KF 系列實際功耗修正
-        if cpu:
-            cpu_name = cpu.name
-            if "265K" in cpu_name or "265KF" in cpu_name:
-                cpu_tdp = 180
-            elif "245K" in cpu_name or "245KF" in cpu_name:
-                cpu_tdp = 160
-
-        if gpu:
-            if gpu.price > 40000:   gpu_tdp = 500
-            elif gpu.price > 28000: gpu_tdp = 350
-            elif gpu.price > 18000: gpu_tdp = 250
-            elif gpu.price > 12000: gpu_tdp = 200
-            elif gpu.price > 8000:  gpu_tdp = 180
-            elif gpu.price > 5000:  gpu_tdp = 150
-            elif gpu.price > 4000:  gpu_tdp = 120
-            else:                   gpu_tdp = 90
-        else:
-            gpu_tdp = 150
-
-        # GPU tier 對應業界 PSU 標準（含 transient burst）
-        if gpu_tdp >= 450:   psu_floor = 1000
-        elif gpu_tdp >= 300: psu_floor = 850
-        elif gpu_tdp >= 200: psu_floor = 750
-        elif gpu_tdp >= 150: psu_floor = 650
-        else:                psu_floor = 550
-
-        # sustained + transient 下限驗算
-        base            = cpu_tdp * 0.6 + gpu_tdp * 0.6 + system_pwr
-        transient       = gpu_tdp * 0.6
-        sustained_floor = (base + transient) * 1.1
-
-        return max(psu_floor, sustained_floor)

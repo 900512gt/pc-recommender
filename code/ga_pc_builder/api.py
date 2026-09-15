@@ -14,6 +14,8 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from typing import Optional
+
 from pydantic import BaseModel, Field
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -75,12 +77,25 @@ def index():
 
 # ── schema ───────────────────────────────────────────────────────────────────
 
-VALID_USAGES = {"工作", "遊戲"}
+VALID_USAGES = {"工作", "遊戲", "一般文書"}
+
+class UsageWeights(BaseModel):
+    """效能/口碑/CP值三個滑桿，各 0~100，代表「相對重要程度」，不是絕對佔比。
+    三者之間的比例會被重新分配進該 usage 預設的效能+口碑+CP值總份額裡，
+    budget/compat 這兩個約束完全不受滑桿影響。全部留預設值(50/50/50)等同
+    交給系統判斷（維持該 usage 原本的權重比例）。"""
+    perf: float = Field(50, ge=0, le=100, description="效能相對重要程度")
+    sent: float = Field(50, ge=0, le=100, description="口碑相對重要程度")
+    cp:   float = Field(50, ge=0, le=100, description="CP值相對重要程度")
+
 
 class RecommendRequest(BaseModel):
     budget: int = Field(..., ge=10000, description="Total budget in NT$")
     cooling_prefer: str = Field("auto", description="auto | 風冷 | 水冷")
-    usage: str = Field("工作", description="工作 | 遊戲")
+    usage: str = Field("工作", description="工作 | 遊戲 | 一般文書")
+    weights: Optional[UsageWeights] = Field(
+        None, description="效能/口碑/CP值滑桿，留空則使用該用途的預設權重"
+    )
 
 
 # ── endpoint ─────────────────────────────────────────────────────────────────
@@ -103,7 +118,17 @@ def recommend(request: Request, req: RecommendRequest):
         mutation_rate=0.30,
         cooling_prefer=req.cooling_prefer,
         psu_tier="standard",
+        custom_weights=req.weights.dict() if req.weights else None,
     )
+    # 實際套用到 fitness 的權重（滑桿換算後的結果），給前端／本機測試頁顯示用，
+    # 方便肉眼確認滑桿真的有正確換算成 fitness 權重，不是只是介面上動一動。
+    resolved_weights = {
+        "perf": round(ga.weights["w_perf"], 4),
+        "sent": round(ga.weights["w_sent"], 4),
+        "cp": round(ga.weights["w_cp"], 4),
+        "budget": round(ga.weights["w_budget"], 4),
+        "compat": round(ga.weights["w_compat"], 4),
+    }
 
     top5 = ga.run(verbose=False)
     if not top5:
@@ -155,6 +180,7 @@ def recommend(request: Request, req: RecommendRequest):
             "issues": issues,
         },
         "upgrades": upgrades,
+        "resolved_weights": resolved_weights,
     }
 
 

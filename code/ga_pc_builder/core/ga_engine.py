@@ -61,6 +61,7 @@ class GARecommender:
         tournament_k: int = 5,
         cooling_prefer: str = "auto",
         psu_tier: str = "standard",
+        custom_weights: dict | None = None,
     ):
         assert usage in USAGE_WEIGHTS, f"usage 必須是 {list(USAGE_WEIGHTS.keys())}"
         self.catalog     = catalog
@@ -78,10 +79,69 @@ class GARecommender:
         self.mr          = mutation_rate
         self.tourn_k     = tournament_k
         self.cooling_prefer = cooling_prefer
-        self.psu_tier = psu_tier  
-        self.weights     = USAGE_WEIGHTS[usage]
+        self.psu_tier = psu_tier
+        # 淺拷貝：USAGE_WEIGHTS[usage] 是模組層級共用的常數字典，直接引用的話
+        # 下面對 self.weights 的滑桿覆寫會反過來污染全域預設值，影響到同一個
+        # process 裡其他沒有帶自訂權重的請求（api.py 用 lifespan 全服務共用資源，
+        # 同步 endpoint 可能被 FastAPI 丟到不同 thread 平行處理）。
+        self.weights     = dict(USAGE_WEIGHTS[usage])
+        if custom_weights:
+            self._apply_custom_weights(custom_weights)
         self.history_best: list[float] = []
         self.history_avg:  list[float] = []
+        # 類別內 min-max 正規化用的範圍快取，只在初始化時掃一次 catalog，
+        # 避免每次 fitness 評估都重算（一次 run 約 90,000 次 fitness 呼叫）。
+        self._compute_perf_ranges()
+
+    def _apply_custom_weights(self, custom_weights: dict):
+        """把使用者三個滑桿值（perf/sent/cp，各 0~100，相對重要程度，不是絕對佔比）
+        依比例重新分配進該 usage 預設的「效能+口碑+CP值」總份額裡。
+        w_budget、w_compat 完全不受影響，維持該 usage 的預設值——
+        保底避免相容性/預算的軟性約束被使用者的滑桿稀釋掉。"""
+        default = USAGE_WEIGHTS[self.usage]
+        reserved = default["w_perf"] + default["w_sent"] + default["w_cp"]
+
+        try:
+            raw_perf = max(0.0, float(custom_weights.get("perf", 0) or 0))
+            raw_sent = max(0.0, float(custom_weights.get("sent", 0) or 0))
+            raw_cp   = max(0.0, float(custom_weights.get("cp", 0) or 0))
+        except (ValueError, TypeError):
+            return  # 傳入格式有問題，安全退回預設值，不讓整個 GA 掛掉
+
+        total_raw = raw_perf + raw_sent + raw_cp
+        if total_raw <= 0:
+            # 三個滑桿都是 0（或沒給有效值）→ 視為「交給系統決定」，維持預設比例
+            return
+
+        self.weights["w_perf"] = raw_perf / total_raw * reserved
+        self.weights["w_sent"] = raw_sent / total_raw * reserved
+        self.weights["w_cp"]   = raw_cp   / total_raw * reserved
+
+    def _compute_perf_ranges(self):
+        """算出每個類別的 benchmark / price 範圍，供 _perf_score() 做類別內 min-max 正規化。
+        有 benchmark 資料的類別（目前實務上是 CPU/GPU）用 benchmark 範圍；
+        沒有的類別（RAM/主機板/SSD/HDD/散熱/機殼/電源）用 price 範圍。
+        取代原本固定分母（benchmark/50000、price/PRICE_CEILING）壓扁同類別內差距的問題。
+        """
+        self._bench_range: dict[str, tuple[float, float]] = {}
+        self._price_range: dict[str, tuple[float, float]] = {}
+        for cat in PRICE_CEILING:
+            parts = self.catalog.get(cat)
+            if not parts:
+                continue
+            benchmarks = []
+            for p in parts:
+                try:
+                    b = float(p.specs.get("benchmark", 0) or 0)
+                except (ValueError, TypeError):
+                    b = 0.0
+                if b > 0:
+                    benchmarks.append(b)
+            if benchmarks:
+                self._bench_range[cat] = (min(benchmarks), max(benchmarks))
+            prices = [p.price for p in parts if p.price > 0]
+            if prices:
+                self._price_range[cat] = (min(prices), max(prices))
 
     def _random_build(self) -> Build:
         b = Build()
@@ -250,12 +310,21 @@ class GARecommender:
         for cat, part in build.parts.items():
             cat_key = "散熱" if cat in COOLING_CATS else cat
             w = pw.get(cat_key, pw.get(cat, 0.0))
-            benchmark = part.specs.get("benchmark")
-            if benchmark and float(benchmark) > 0:
-                norm = min(float(benchmark) / 50000, 1.0)
+            try:
+                benchmark = float(part.specs.get("benchmark", 0) or 0)
+            except (ValueError, TypeError):
+                benchmark = 0.0
+
+            if benchmark > 0 and cat in self._bench_range:
+                bmin, bmax = self._bench_range[cat]
+                norm = 1.0 if bmax <= bmin else (benchmark - bmin) / (bmax - bmin)
             else:
-                ceil = PRICE_CEILING.get(cat, 10000)
-                norm = min(part.price / ceil, 1.0)
+                pmin, pmax = self._price_range.get(cat, (0.0, 0.0))
+                if pmax <= pmin:
+                    norm = 1.0
+                else:
+                    norm = (part.price - pmin) / (pmax - pmin)
+            norm = max(0.0, min(norm, 1.0))
             score   += w * norm
             total_w += w
         return score / total_w if total_w > 0 else 0.0

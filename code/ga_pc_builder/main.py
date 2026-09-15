@@ -117,8 +117,8 @@ def get_user_input():
     # 用途
     print("\n用途選擇：")
     print("1. 遊戲")
-    print("2. 工作（開發中）")
-    print("3. 一般文書（開發中）")
+    print("2. 工作")
+    print("3. 一般文書")
     while True:
         choice = input("請選擇（1/2/3）：").strip()
         if choice == "1":
