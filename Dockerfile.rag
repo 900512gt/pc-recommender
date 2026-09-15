@@ -26,6 +26,8 @@ COPY data/rag_chunks_v2.jsonl data/rag_chunks_v2.jsonl
 COPY data/rag_evidence.jsonl data/rag_evidence.jsonl
 COPY data/chroma_db data/chroma_db
 COPY data/ga_database_v2.json data/ga_database_v2.json
+# 面向雷達圖讀 GA 那邊既有的 BERT 面向分數，維持單一來源不另存複本
+COPY code/ga_pc_builder/data/part_sentiment.json code/ga_pc_builder/data/part_sentiment.json
 
 ENV PYTHONUNBUFFERED=1
 EXPOSE 8001

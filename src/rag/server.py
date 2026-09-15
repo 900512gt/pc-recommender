@@ -17,7 +17,7 @@ ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(ROOT))
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -30,6 +30,7 @@ from starlette.concurrency import iterate_in_threadpool
 
 from src.rag.chat import chat_stream, _has_substantive_data
 from src.rag.evidence import get_store
+from src.rag.aspects import get_store as aspect_store
 
 load_dotenv(ROOT / ".env")
 
@@ -163,6 +164,20 @@ async def chat_endpoint(request: Request, req: ChatRequest):
             "X-Accel-Buffering": "no",
         },
     )
+
+
+@app.get("/api/model/{model}/aspects")
+@limiter.limit("60/minute")
+def model_aspects(request: Request, model: str):
+    """某型號的五大面向口碑分數，給前端畫雷達圖。
+
+    純記憶體查表，不呼叫 OpenAI。資料充足的面向不到三個就回 404——兩個軸畫不出
+    多邊形，硬畫只會讓人以為系統知道得比實際多。
+    """
+    data = aspect_store().get(model)
+    if data is None:
+        raise HTTPException(status_code=404, detail="這個型號沒有足夠的面向評價可以比較")
+    return data
 
 
 @app.get("/health")

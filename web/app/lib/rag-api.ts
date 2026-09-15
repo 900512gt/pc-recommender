@@ -34,6 +34,36 @@ export type ChatEvent =
   | { type: "sources"; groups: SourceGroup[] }
   | { type: "text"; text: string };
 
+export interface Aspect {
+  name: string;
+  score: number;
+  positive: number;
+  negative: number;
+  samples: number;
+  /** 樣本數足夠、分數才可信。不足時 score 仍有值但不該拿來畫圖。 */
+  sufficient: boolean;
+}
+
+export interface ModelAspects {
+  model: string;
+  review_count: number;
+  aspects: Aspect[];
+}
+
+/**
+ * 五大面向口碑分數（效能／溫控／噪音／保固／CP值）。
+ * 可信面向不到三個的型號後端會回 404——三個軸才畫得出多邊形。
+ * 雷達圖只是輔助資訊，失敗一律回 null 讓畫面單純不顯示。
+ */
+export async function fetchAspects(model: string): Promise<ModelAspects | null> {
+  try {
+    const res = await fetch(`${RAG_API_URL}/api/model/${encodeURIComponent(model)}/aspects`);
+    return res.ok ? ((await res.json()) as ModelAspects) : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * POST /api/chat 是 SSE 串流：先來一個 sources event（回答依據的原始評論），
  * 之後是一連串 text event。text 帶的是累積文字（不是 delta），呼叫端直接拿來
