@@ -132,22 +132,32 @@ def recommend(request: Request, req: RecommendRequest):
     # Compatibility
     penalty, issues = res.checker.check(best)
 
-    # Upgrade recommendations
-    raw_recs = res.advisor.get_smart_recommendations(best, req.budget, remaining, req.usage)
-    upgrades = [
-        {
+    # Upgrade recommendations，依加價幅度分級
+    def _serialize(r: dict) -> dict:
+        return {
             "priority": r["priority"],
             "category": r["category"],
-            "reason": r["reason"],
             "current_name": r["current"].name,
             "current_price": r["current"].price,
             "upgrade_name": r["upgrade"].name,
             "upgrade_price": r["upgrade"].price,
             "cost": r["cost"],
-            "benefit": r["benefit"],
-            "sentiment_improvement": r["sentiment_improvement"],
+            # 只有 CPU/GPU 有 PassMark 跑分，其餘類別是 null，前端不顯示百分比
+            "benchmark_gain_pct": r["benchmark_gain_pct"],
+            "sentiment_delta": r["sentiment_delta"],
+            "spec_changes": r["spec_changes"],
         }
-        for r in raw_recs
+
+    upgrade_tiers = [
+        {
+            "extra_budget": t["extra_budget"],
+            "extra_ratio": t["extra_ratio"],
+            "available": t["available"],
+            "spent": t["spent"],
+            "new_total_price": t["new_total_price"],
+            "upgrades": [_serialize(r) for r in t["upgrades"]],
+        }
+        for t in res.advisor.recommend_tiers(best, req.budget, remaining, req.usage)
     ]
 
     return {
@@ -160,7 +170,7 @@ def recommend(request: Request, req: RecommendRequest):
             "penalty": round(penalty, 3),
             "issues": issues,
         },
-        "upgrades": upgrades,
+        "upgrade_tiers": upgrade_tiers,
     }
 
 

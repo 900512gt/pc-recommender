@@ -34,46 +34,33 @@ def print_upgrade_recommendations(advisor: UpgradeAdvisor,
                                  budget: int,
                                  remaining: int,
                                  usage: str = "遊戲"):
-    """顯示智能升級建議"""
-    if remaining <= 500:
-        print(f"\n  預算已充分利用，升級空間有限")
+    """顯示升級建議，依加價幅度分級"""
+    tiers = advisor.recommend_tiers(build, budget, remaining, usage)
+    if not tiers:
+        print(f"\n  目前配置已是此預算最佳分配，加價也換不到更好的零件")
         return
-    
-    print(f"\n  【根據您的預算和使用需求的升級建議】")
-    print(f"  剩餘預算：NT${remaining:,} 可用於升級")
-    print()
-    
-    recommendations = advisor.get_smart_recommendations(
-        build, budget, remaining, usage
-    )
-    
-    if not recommendations:
-        print(f"  目前配置已是此預算最佳分配")
-        return
-    
-    total_upgrade_cost = 0
-    for rec in recommendations:
-        total_upgrade_cost += rec["cost"]
-        
-        print(f"  【第 {rec['priority']} 優先】{rec['category']} 升級")
-        print(f"    目前：{rec['current'].name[:45]}")
-        print(f"           NT${rec['current'].price:,}")
-        print(f"    升級：{rec['upgrade'].name[:45]}")
-        print(f"           NT${rec['upgrade'].price:,} (增加 +NT${rec['cost']:,})")
-        print(f"    效益：{rec['benefit']}")
-        print(f"    理由：{rec['reason']}")
-        print(f"    情感評分：{rec['sentiment_improvement']}")
+
+    print(f"\n  【升級建議】")
+    for tier in tiers:
+        if tier["extra_ratio"] == 0:
+            head = f"不加價（用剩餘的 NT${remaining:,}）"
+        else:
+            head = f"加價 {tier['extra_ratio']:.0%}（多花 NT${tier['extra_budget']:,}）"
+        print(f"\n  ── {head} ──")
+        print(f"  實際花費 NT${tier['spent']:,}，"
+              f"總價 NT${build.total_price:,} → NT${tier['new_total_price']:,}")
         print()
-    
-    total_after = build.total_price + total_upgrade_cost
-    print(f"  若全部升級：NT${build.total_price:,} → NT${total_after:,} "
-          f"(增加 +NT${total_upgrade_cost:,})")
-    print(f"  剩餘預算：NT${budget - total_after:,}")
-    
-    # 提供逐項選擇選項
-    print(f"\n  您也可以選擇性地進行部分升級")
-    for rec in recommendations:
-        print(f"    • 升級 {rec['category']}：+NT${rec['cost']:,}")
+
+        for rec in tier["upgrades"]:
+            print(f"    {rec['category']}：{rec['current'].name[:40]}")
+            print(f"    　→ {rec['upgrade'].name[:40]}")
+            print(f"       加價 +NT${rec['cost']:,}")
+            if rec["benchmark_gain_pct"] is not None:
+                print(f"       效能：PassMark 跑分 +{rec['benchmark_gain_pct']}%")
+            for change in rec["spec_changes"]:
+                print(f"       規格：{change}")
+            print(f"       論壇口碑：{rec['sentiment_delta']:+.3f}")
+            print()
 
  
  
