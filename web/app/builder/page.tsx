@@ -12,7 +12,9 @@ import {
 const MIN_BUDGET = 10000;
 
 export default function BuilderPage() {
-  const [budget, setBudget] = useState(40000);
+  // 存字串而不是數字：存數字的話清空欄位會讓 Number("") 變成 0，畫面重新渲染出
+  // 一個刪不掉的「0」——想刪它又觸發同一次轉換，使用者永遠清不乾淨。
+  const [budget, setBudget] = useState("40000");
   const [usage, setUsage] = useState<Usage>("工作");
   const [cooling, setCooling] = useState<CoolingPreference>("auto");
   const [loading, setLoading] = useState(false);
@@ -21,7 +23,9 @@ export default function BuilderPage() {
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
-    if (budget < MIN_BUDGET) {
+    const parsedBudget = Number(budget);
+    // 空欄位會是 Number("") === 0，一樣被這道檢查擋下來
+    if (parsedBudget < MIN_BUDGET) {
       setError(`預算至少需要 NT$${MIN_BUDGET.toLocaleString()}`);
       return;
     }
@@ -29,7 +33,7 @@ export default function BuilderPage() {
     setError(null);
     setResult(null);
     try {
-      const res = await recommend({ budget, usage, cooling_prefer: cooling });
+      const res = await recommend({ budget: parsedBudget, usage, cooling_prefer: cooling });
       setResult(res);
     } catch (err) {
       setError(err instanceof GaApiError ? err.message : "發生未知錯誤");
@@ -56,7 +60,7 @@ export default function BuilderPage() {
             min={MIN_BUDGET}
             step={1000}
             value={budget}
-            onChange={(e) => setBudget(Number(e.target.value))}
+            onChange={(e) => setBudget(e.target.value)}
             className="rounded-sm border border-border-strong px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent"
           />
         </label>
