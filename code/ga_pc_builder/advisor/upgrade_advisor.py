@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 from core.ga_engine import Build
 from data.catalog import Part, PartCatalog
 from data.sentiment import SentimentScorer
+from policies.psu_policy import required_watt
 
 # 各類別「換得更好」的判斷依據，依序比較。CPU/GPU 用跑分，其餘用規格。
 # 沒列在這裡的類別（機殼、風冷、水冷）不提供升級建議：它們沒有可量化的優劣軸，
@@ -239,4 +240,34 @@ class UpgradeAdvisor:
         candidate_build.parts[category] = candidate
         before, _ = self.checker.check(build)
         after, _ = self.checker.check(candidate_build)
-        return after <= before
+        if after > before:
+            return False
+        return self._psu_still_covers(build, candidate_build)
+
+    @staticmethod
+    def _psu_still_covers(build: Build, candidate_build: Build) -> bool:
+        """換了零件之後電源還夠不夠。
+
+        電源檢查已經從 CompatibilityChecker 移到 policies/psu_policy（避免同一個問題
+        被兩個模組各扣一次分），所以 checker.check() 現在完全不看電源——升級建議必須
+        自己問一次，否則 350W 電源會被推薦 TGP 360W 的 RTX5080。
+
+        不能改用 psu_score 比較分數：它對供電不足一律回 -0.5，換上更吃電的顯卡之後
+        還是 -0.5，看不出情況變糟。要比的是需求瓦數本身。
+
+        只擋「需求變高、而且高過電源瓦數」的升級。原本就供電吃緊但這次升級沒有讓耗電
+        增加的（換 SSD、換主機板），不該被連帶擋掉。
+        """
+        psu = candidate_build.parts.get("電源")
+        if psu is None:
+            return True
+        try:
+            psu_watt = float(psu.specs.get("wattage", 0) or 0)
+        except (TypeError, ValueError):
+            return True
+        if psu_watt <= 0:
+            return True
+
+        before = required_watt(build.parts.get("CPU"), build.parts.get("GPU"))
+        after = required_watt(candidate_build.parts.get("CPU"), candidate_build.parts.get("GPU"))
+        return after <= before or after <= psu_watt

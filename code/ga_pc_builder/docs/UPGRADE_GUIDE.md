@@ -2,35 +2,18 @@
 
 ## 功能概述
 
-新增的升級建議系統包含三個主要模塊：
+新增的升級建議系統包含兩個主要模塊：
 
 | 模塊 | 位置 | 說明 |
 |------|------|------|
 | 升級建議引擎 | `advisor/upgrade_advisor.py` | 根據配置、預算和使用目的提供智能升級建議，支持按優先級推薦，考慮預算約束和性價比 |
-| 配置分析工具 | `advisor/build_analyzer.py` | 對用戶提供的配置進行完整分析，識別最弱環節並提供升級優先級與性價比分析 |
 | 主程式整合 | `main.py` | 集成升級建議功能，`print_upgrade_recommendations()` 顯示智能升級建議 |
 
 ---
 
 ## 使用方式
 
-### 方式 1：快速分析現有配置
-
-```bash
-python advisor/build_analyzer.py
-```
-
-輸出內容：
-- 配置總價
-- 平均情感評分
-- 各零件的情感評分對比（視覺化柱狀圖）
-- 升級優先級分析（按評分低→高排序）
-- 性價比評估（每仟元的情感評分）
-- 詳細升級建議
-
----
-
-### 方式 2：在 GA 推薦系統中自動顯示升級建議
+### 方式 1：在 GA 推薦系統中自動顯示升級建議
 
 ```bash
 python main.py
@@ -47,11 +30,10 @@ python main.py
 
 ---
 
-### 方式 3：在程式碼中直接整合
+### 方式 2：在程式碼中直接整合
 
 ```python
 from advisor.upgrade_advisor import UpgradeAdvisor
-from advisor.build_analyzer import print_config_analysis
 from data.catalog import PartCatalog
 from data.sentiment import SentimentScorer
 
@@ -94,11 +76,6 @@ for rec in recommendations:
 4. **個性化建議**
    - 針對工作 / 遊戲 / 文書等不同使用場景
    - 提供具體的效益描述（FPS 提升、響應速度等）
-
-5. **視覺化分析**
-   - 柱狀圖顯示情感評分對比
-   - 升級優先級清單
-   - 性價比對比表
 
 ---
 
