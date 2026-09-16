@@ -48,6 +48,22 @@ BAHA_CAT_MAP = {
 MANUAL_KW   = {
     "DEEPCOOL ASSASSIN IV": "ASSASSIN IV",
     "ADATA XPG S70":        "XPG S70",
+
+    # 原價屋的商品名稱用中文品牌名「貓頭鷹」，我們的型號名卻是英文「Noctua」，
+    # 直接比對一定落空。extract_fallback_kw() 也救不了：它把 "NH-D15" 從連字號
+    # 拆成 "NH" 與 "D15"，兩個都短於 MIN_KW_LEN=4 被濾掉，最後只剩 "Noctua"
+    # 這個關鍵字——而原價屋的名稱裡從頭到尾沒有這個字。
+    #
+    # 「貓頭鷹 NH-D15」是「貓頭鷹 NH-D15S」的子字串，但 build_model_index() 是
+    # 依關鍵字長度由長到短指派、且每筆商品只會被認領一次，所以必須連 D15S 一起
+    # 列進來：它的關鍵字較長會先認領自己的商品，D15 才不會把 D15S 一起吃掉。
+    #
+    # 已知取捨：NH-D15 會連帶認領「貓頭鷹 NH-D15 G2」（新款 8 導管，算同系列但
+    # 規格不同）。G2 沒有自己的評論資料所以不是獨立型號，不收的話那幾筆商品會
+    # 完全沒人認領，兩害相權取其輕。
+    "Noctua NH-D15S": "貓頭鷹 NH-D15S",
+    "Noctua NH-D15":  "貓頭鷹 NH-D15",
+    "Noctua NH-L9a":  "貓頭鷹 NH-L9a",
 }
 MIN_KW_LEN  = 4
 SKIP_TOKENS = {"TB", "GB", "MB", "W"}
