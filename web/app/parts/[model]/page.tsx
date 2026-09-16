@@ -21,35 +21,41 @@ export default function ModelDetailPage() {
   const params = useParams<{ model: string }>();
   const model = decodeURIComponent(params.model);
 
-  const [detail, setDetail] = useState<ModelDetail | null>(null);
-  const [timeline, setTimeline] = useState<Timeline | null>(null);
-  const [aspects, setAspects] = useState<ModelAspects | null>(null);
-  const [comments, setComments] = useState<SourceComment[]>([]);
-  const [loading, setLoading] = useState(true);
+  // 四支端點的結果連同「這是哪個型號的資料」一起存。這樣 loading 可以從 state 推導
+  // 而不必在 effect 裡同步 setLoading(true)（那會多觸發一輪重繪，eslint 也會擋），
+  // 而且從 A 型號跳到 B 型號時，不會有一瞬間把 A 的資料掛在 B 的標題底下。
+  const [loaded, setLoaded] = useState<{
+    model: string;
+    detail: ModelDetail | null;
+    timeline: Timeline | null;
+    aspects: ModelAspects | null;
+    comments: SourceComment[];
+  } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
     // 四支端點互相獨立，同時發出去；走勢與面向資料不足時會回 null，該區塊就不顯示
     Promise.all([
       fetchModelDetail(model),
       fetchTimeline(model),
       fetchAspects(model),
       fetchModelComments(model),
-    ]).then(([d, t, a, c]) => {
+    ]).then(([detail, timeline, aspects, comments]) => {
       if (cancelled) return;
-      setDetail(d);
-      setTimeline(t);
-      setAspects(a);
-      setComments(c);
-      setLoading(false);
+      setLoaded({ model, detail, timeline, aspects, comments });
     });
     return () => {
       cancelled = true;
     };
   }, [model]);
 
-  if (loading) {
+  const ready = loaded?.model === model ? loaded : null;
+  const detail = ready?.detail ?? null;
+  const timeline = ready?.timeline ?? null;
+  const aspects = ready?.aspects ?? null;
+  const comments = ready?.comments ?? [];
+
+  if (!ready) {
     return <Shell><p className="text-sm text-text-muted">載入中…</p></Shell>;
   }
   if (!detail) {
