@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 const LINKS = [
   { href: "/", label: "首頁" },
   { href: "/builder", label: "配置建置" },
+  { href: "/parts", label: "零件口碑" },
 ];
 
 export default function Nav() {
