@@ -171,7 +171,10 @@ export interface ModelDetail {
   aspects: { aspect: string; text: string }[];
   pros_cons: string[];
   comparisons: string[];
-  /** 已停產的型號在原價屋清單上找不到，會是 null——口碑仍然顯示，只是沒有價格。 */
+  /**
+   * 不在原價屋報價單快照裡的型號會是 null。這不代表停產（快照裡連 RTX40 系列都沒有），
+   * 只代表這份報價單上查不到，所以畫面顯示「—」而不是「已停產」。
+   */
   listing: {
     name: string | null;
     price: number | null;

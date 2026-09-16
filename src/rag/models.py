@@ -117,8 +117,9 @@ class ModelStore:
         listing = self._listing.get(model)
         return {
             **entry,
-            # listing 為 None 代表這個型號在原價屋清單上已經找不到，通常是停產。
-            # 口碑資料仍然有參考價值，所以照樣顯示，只是沒有價格。
+            # listing 為 None 只代表這個型號不在原價屋報價單快照裡，不能據此推論停產
+            # ——這份快照連 RTX40 系列都沒有，但那顯然還買得到。口碑資料照樣顯示，
+            # 前端會把價格顯示成「—」並加註說明。
             "listing": {
                 "name": listing.get("name"),
                 "price": listing.get("price"),
