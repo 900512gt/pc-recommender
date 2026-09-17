@@ -165,7 +165,7 @@ export function RadarChart({ models }: { models: ModelAspects[] }) {
   );
 }
 
-function Swatch({ color, label }: { color: string; label: string }) {
+export function Swatch({ color, label }: { color: string; label: string }) {
   return (
     <span className="flex items-center gap-1">
       <span className="inline-block h-2 w-2 rounded-xs" style={{ background: color }} />

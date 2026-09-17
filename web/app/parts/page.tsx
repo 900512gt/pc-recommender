@@ -2,7 +2,19 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { Swatch } from "../components/charts";
 import { fetchModelIndex, type ModelIndexRow } from "../lib/rag-api";
+
+/**
+ * 正負分布條的三段，依序由左到右。標題旁的圖例與長條本身都讀這一份，
+ * 改顏色或順序只要動這裡，圖例不會跟長條對不上。
+ * 順序與詳情頁的口碑走勢圖一致（負評在最前面）。
+ */
+const LABEL_SEGMENTS = [
+  { key: "負評", short: "負", color: "var(--text)" },
+  { key: "正評", short: "正", color: "var(--text-dim)" },
+  { key: "中立", short: "中", color: "var(--border-strong)" },
+] as const;
 
 export default function PartsPage() {
   const [rows, setRows] = useState<ModelIndexRow[] | null>(null);
@@ -72,7 +84,17 @@ export default function PartsPage() {
                 <th className="py-2 font-medium">型號</th>
                 <th className="py-2 font-medium">類別</th>
                 <th className="py-2 pr-8 font-medium text-right">討論則數</th>
-                <th className="py-2 font-medium">正負分布</th>
+                <th className="py-2 font-medium">
+                  <span className="flex items-center gap-2.5">
+                    正負分布
+                    {/* 長條只有顏色沒有文字，不附圖例的話看不出哪段是哪種評價 */}
+                    <span className="flex items-center gap-2 text-xs font-normal text-text-dim">
+                      {LABEL_SEGMENTS.map((s) => (
+                        <Swatch key={s.key} color={s.color} label={s.short} />
+                      ))}
+                    </span>
+                  </span>
+                </th>
                 <th className="py-2 font-medium text-right">報價單價格</th>
               </tr>
             </thead>
@@ -117,19 +139,15 @@ export default function PartsPage() {
   );
 }
 
-/** 正負中立的比例條。灰階：負評黑、正評中灰、中立淺灰，與各圖表一致。 */
+/** 正負中立的比例條。顏色與順序見 LABEL_SEGMENTS。 */
 function LabelBar({ distribution }: { distribution: Record<string, number> }) {
-  const negative = distribution["負評"] ?? 0;
-  const positive = distribution["正評"] ?? 0;
-  const neutral = distribution["中立"] ?? 0;
-  const total = negative + positive + neutral;
+  const segments = LABEL_SEGMENTS.map((s) => ({
+    value: distribution[s.key] ?? 0,
+    color: s.color,
+    label: s.key,
+  }));
+  const total = segments.reduce((sum, s) => sum + s.value, 0);
   if (total === 0) return <span className="text-text-dim">—</span>;
-
-  const segments = [
-    { value: negative, color: "var(--text)", label: "負評" },
-    { value: positive, color: "var(--text-dim)", label: "正評" },
-    { value: neutral, color: "var(--border-strong)", label: "中立" },
-  ];
 
   return (
     <span
