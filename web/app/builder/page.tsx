@@ -1,21 +1,59 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useId, useState, type CSSProperties, type FormEvent } from "react";
 import {
   GaApiError,
   recommend,
   type CoolingPreference,
+  type PreferenceWeights,
   type RecommendResponse,
   type Usage,
 } from "../lib/ga-api";
+import styles from "./preference-slider.module.css";
 
 const MIN_BUDGET = 10000;
+const INITIAL_USAGE: Usage = "工作";
+
+/**
+ * 各用途的系統預設比重，對應 code/ga_pc_builder/config.py 的 USAGE_WEIGHTS
+ * （w_perf / w_sent / w_cp）。那邊改權重時這裡要一起改。
+ *
+ * 滑桿一定要從這個位置出發，而且沒調整過就不送 weights。後端把三個滑桿當相對
+ * 比例重新分配，停在 50/50/50 送出去會被換算成三者等重，用途之間的差異就沒了。
+ */
+const USAGE_DEFAULT_WEIGHTS: Record<Usage, PreferenceWeights> = {
+  遊戲: { perf: 0.35, sent: 0.2, cp: 0.15 },
+  工作: { perf: 0.3, sent: 0.2, cp: 0.2 },
+};
+
+const PREFERENCES = [
+  { key: "perf", label: "效能" },
+  { key: "sent", label: "口碑" },
+  { key: "cp", label: "CP 值" },
+] as const;
+
+/** 把用途預設比重換算成滑桿位置（0~100，三項加總約 100）。遊戲是 50 / 29 / 21。 */
+function defaultSliders(usage: Usage): PreferenceWeights {
+  const w = USAGE_DEFAULT_WEIGHTS[usage];
+  const total = w.perf + w.sent + w.cp;
+  return {
+    perf: Math.round((w.perf / total) * 100),
+    sent: Math.round((w.sent / total) * 100),
+    cp: Math.round((w.cp / total) * 100),
+  };
+}
+
+function isCustomized(usage: Usage, weights: PreferenceWeights): boolean {
+  const defaults = defaultSliders(usage);
+  return PREFERENCES.some((p) => weights[p.key] !== defaults[p.key]);
+}
 
 export default function BuilderPage() {
   // 存字串而不是數字：存數字的話清空欄位會讓 Number("") 變成 0，畫面重新渲染出
   // 一個刪不掉的「0」——想刪它又觸發同一次轉換，使用者永遠清不乾淨。
   const [budget, setBudget] = useState("40000");
-  const [usage, setUsage] = useState<Usage>("工作");
+  const [usage, setUsage] = useState<Usage>(INITIAL_USAGE);
+  const [weights, setWeights] = useState<PreferenceWeights>(() => defaultSliders(INITIAL_USAGE));
   const [cooling, setCooling] = useState<CoolingPreference>("auto");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -33,7 +71,14 @@ export default function BuilderPage() {
     setError(null);
     setResult(null);
     try {
-      const res = await recommend({ budget: parsedBudget, usage, cooling_prefer: cooling });
+      const total = weights.perf + weights.sent + weights.cp;
+      const res = await recommend({
+        budget: parsedBudget,
+        usage,
+        cooling_prefer: cooling,
+        // 沒調整過（或三項全是 0）就不送，讓後端完整沿用該用途的預設比重
+        ...(isCustomized(usage, weights) && total > 0 ? { weights } : {}),
+      });
       setResult(res);
     } catch (err) {
       setError(err instanceof GaApiError ? err.message : "發生未知錯誤");
@@ -69,13 +114,20 @@ export default function BuilderPage() {
           <span className="text-sm font-medium">用途</span>
           <select
             value={usage}
-            onChange={(e) => setUsage(e.target.value as Usage)}
+            onChange={(e) => {
+              const next = e.target.value as Usage;
+              setUsage(next);
+              // 滑桿跟著跳到新用途的預設位置，不然會把上一個用途的比重帶過來
+              setWeights(defaultSliders(next));
+            }}
             className="rounded-sm border border-border-strong px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent"
           >
             <option value="工作">工作</option>
             <option value="遊戲">遊戲</option>
           </select>
         </label>
+
+        <PreferenceSliders usage={usage} value={weights} onChange={setWeights} />
 
         <label className="flex flex-col gap-2">
           <span className="text-sm font-medium">散熱偏好</span>
@@ -107,6 +159,93 @@ export default function BuilderPage() {
 
       {result && <ResultView result={result} />}
     </main>
+  );
+}
+
+/**
+ * 效能／口碑／CP 值的偏好比重。右邊顯示的是三項之間的相對佔比而不是滑桿原始值，
+ * 讓使用者看得出「拉到 100」不等於「100%」。
+ *
+ * 版面沿用表單其他欄位「標籤在上、控制項在下」的排法：每列上方左邊是名稱、右邊是
+ * 佔比，下方是整條寬度的滑桿。這樣三條軌道等長、左右兩端對齊，手機上也不必把
+ * 名稱、軌道、數字硬擠在同一行。佔比數字沿用結果區 Stat 的「數值用 semibold」。
+ */
+function PreferenceSliders({
+  usage,
+  value,
+  onChange,
+}: {
+  usage: Usage;
+  value: PreferenceWeights;
+  onChange: (next: PreferenceWeights) => void;
+}) {
+  const id = useId();
+  const total = value.perf + value.sent + value.cp;
+  const customized = isCustomized(usage, value);
+
+  return (
+    <div role="group" aria-labelledby={`${id}-title`} className="flex flex-col gap-4">
+      <div className="flex items-baseline justify-between gap-4">
+        <span id={`${id}-title`} className="text-sm font-medium">
+          偏好比重
+        </span>
+        {customized ? (
+          <button
+            type="button"
+            onClick={() => onChange(defaultSliders(usage))}
+            className="text-xs text-text-muted underline-offset-4 transition-colors hover:text-text hover:underline"
+          >
+            恢復「{usage}」預設
+          </button>
+        ) : (
+          <span className="text-xs text-text-dim">「{usage}」的系統預設</span>
+        )}
+      </div>
+
+      {PREFERENCES.map((p) => {
+        const share = total > 0 ? Math.round((value[p.key] / total) * 100) : null;
+        const inputId = `${id}-${p.key}`;
+        return (
+          <div key={p.key} className="flex flex-col gap-1">
+            <div className="flex items-baseline justify-between gap-4">
+              <label htmlFor={inputId} className="text-sm text-text-muted">
+                {p.label}
+              </label>
+              {/* 右對齊＋等寬數字，拖動時數字改變不會讓位置左右跳動 */}
+              <output htmlFor={inputId} className="tabular-nums">
+                {share === null ? (
+                  <span className="text-base font-semibold text-text-dim">—</span>
+                ) : (
+                  <>
+                    <span className="text-base font-semibold">{share}</span>
+                    <span className="ml-0.5 text-xs text-text-muted">%</span>
+                  </>
+                )}
+              </output>
+            </div>
+            <input
+              id={inputId}
+              type="range"
+              min={0}
+              max={100}
+              step={1}
+              value={value[p.key]}
+              onChange={(e) => onChange({ ...value, [p.key]: Number(e.target.value) })}
+              // 螢幕閱讀器預設會唸滑桿原始值（例如 50），但畫面上顯示的是佔比，改唸佔比
+              aria-valuetext={share === null ? undefined : `${share}%`}
+              className={styles.range}
+              style={{ "--value": value[p.key] / 100 } as CSSProperties}
+            />
+          </div>
+        );
+      })}
+
+      <p className="text-xs text-text-dim">
+        {total === 0
+          ? "三項都是 0 時會使用系統預設比重。"
+          : "百分比是三項之間的相對比重。預算與零件相容性的把關不受影響。"}
+      </p>
+    </div>
   );
 }
 

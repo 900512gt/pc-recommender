@@ -1,0 +1,146 @@
+/*
+ * 偏好比重的滑桿。沿用頁面其他控制項的設計語彙，不另外發明新樣式：
+ *   - 已選取段用 --accent（這套設計系統唯一的強調手段是黑色填色）
+ *   - 未選取段用 --border-strong，與 input / select 的邊框同色
+ *   - 拖曳鈕的陰影是 DESIGN.md 唯一允許的那一種：0 1px 2px rgba(0,0,0,0.06)
+ *   - 鍵盤聚焦是 2px --accent 外框，與 input / select 的 focus ring 一致
+ *
+ * 已選取段的長度要剛好停在拖曳鈕圓心。原生 range 的圓心在兩端各內縮半個拖曳鈕，
+ * 所以用 --value（0~1，由元件以 inline style 帶入）換算，不能直接用百分比。
+ *
+ * WebKit 與 Firefox 的偽元素必須寫成各自獨立的規則：同一個選擇器清單裡只要有
+ * 一個瀏覽器不認得的偽元素，整條規則在那個瀏覽器都會被丟掉。
+ */
+
+.range {
+  --thumb: 16px;
+  --track: 4px;
+
+  appearance: none;
+  -webkit-appearance: none;
+  display: block;
+  width: 100%;
+  /* 視覺上的軌道只有 4px，可點擊範圍撐到 24px */
+  height: 24px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+/* 觸控裝置手指比滑鼠粗，拖曳鈕與可點擊範圍放大 */
+@media (pointer: coarse) {
+  .range {
+    --thumb: 22px;
+    height: 32px;
+  }
+}
+
+.range:focus {
+  outline: none;
+}
+
+/* ── WebKit / Blink ─────────────────────────────────────────────────────── */
+
+.range::-webkit-slider-runnable-track {
+  height: var(--track);
+  border-radius: calc(var(--track) / 2);
+  background: linear-gradient(
+    to right,
+    var(--accent) calc(var(--thumb) / 2 + (100% - var(--thumb)) * var(--value, 0)),
+    var(--border-strong) 0
+  );
+}
+
+.range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  box-sizing: border-box;
+  width: var(--thumb);
+  height: var(--thumb);
+  margin-top: calc((var(--track) - var(--thumb)) / 2);
+  border: 1px solid var(--text-dim);
+  border-radius: 50%;
+  background: var(--bg);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+  transition:
+    transform 120ms ease,
+    border-color 120ms ease;
+}
+
+.range:hover::-webkit-slider-thumb {
+  border-color: var(--text);
+}
+
+.range:active::-webkit-slider-thumb {
+  transform: scale(1.12);
+}
+
+.range:focus-visible::-webkit-slider-thumb {
+  border-color: var(--text);
+  box-shadow:
+    0 0 0 2px var(--bg),
+    0 0 0 4px var(--accent);
+}
+
+/* ── Firefox ────────────────────────────────────────────────────────────── */
+
+.range::-moz-range-track {
+  height: var(--track);
+  border-radius: calc(var(--track) / 2);
+  background: var(--border-strong);
+}
+
+/* Firefox 有原生的已選取段，不需要自己算長度 */
+.range::-moz-range-progress {
+  height: var(--track);
+  border-radius: calc(var(--track) / 2);
+  background: var(--accent);
+}
+
+.range::-moz-range-thumb {
+  box-sizing: border-box;
+  width: var(--thumb);
+  height: var(--thumb);
+  border: 1px solid var(--text-dim);
+  border-radius: 50%;
+  background: var(--bg);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+  transition:
+    transform 120ms ease,
+    border-color 120ms ease;
+}
+
+.range:hover::-moz-range-thumb {
+  border-color: var(--text);
+}
+
+.range:active::-moz-range-thumb {
+  transform: scale(1.12);
+}
+
+.range:focus-visible::-moz-range-thumb {
+  border-color: var(--text);
+  box-shadow:
+    0 0 0 2px var(--bg),
+    0 0 0 4px var(--accent);
+}
+
+/* ── 減少動態效果 ──────────────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .range::-webkit-slider-thumb {
+    transition: none;
+  }
+
+  .range::-moz-range-thumb {
+    transition: none;
+  }
+
+  .range:active::-webkit-slider-thumb {
+    transform: none;
+  }
+
+  .range:active::-moz-range-thumb {
+    transform: none;
+  }
+}

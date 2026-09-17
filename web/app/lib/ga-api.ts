@@ -3,10 +3,26 @@ const GA_API_URL = process.env.NEXT_PUBLIC_GA_API_URL ?? "http://localhost:8000"
 export type Usage = "工作" | "遊戲";
 export type CoolingPreference = "auto" | "風冷" | "水冷";
 
+/**
+ * 效能／口碑／CP 值三個滑桿，各 0~100。是三者之間的相對比重，不是百分比：
+ * 後端會照比例重新分配進該用途原本「效能＋口碑＋CP值」的總份額，
+ * 預算與相容性的權重不受影響。
+ */
+export interface PreferenceWeights {
+  perf: number;
+  sent: number;
+  cp: number;
+}
+
 export interface RecommendRequest {
   budget: number;
   usage: Usage;
   cooling_prefer: CoolingPreference;
+  /**
+   * 使用者沒調整過就不要送。只有「沒收到 weights」後端才會完整沿用該用途的預設比重；
+   * 送 50/50/50 會被換算成三者等重，把遊戲偏重效能、工作偏重 CPU 這類用途差異抹掉。
+   */
+  weights?: PreferenceWeights;
 }
 
 export interface RecommendedPart {
@@ -57,6 +73,14 @@ export interface RecommendResponse {
     issues: string[];
   };
   upgrade_tiers: UpgradeTier[];
+  /** 實際套用到 fitness 的權重（滑桿換算後的結果），五項加總為 1。 */
+  resolved_weights: {
+    perf: number;
+    sent: number;
+    cp: number;
+    budget: number;
+    compat: number;
+  };
 }
 
 export class GaApiError extends Error {}
