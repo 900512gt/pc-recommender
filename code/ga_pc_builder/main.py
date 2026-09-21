@@ -27,8 +27,8 @@ def print_build(build: Build, scorer: SentimentScorer,
             print(f"     • {i}")
     else:
         print(f"\n  ✅ 相容性：無問題")
- 
- 
+
+
 def print_upgrade_recommendations(advisor: UpgradeAdvisor,
                                  build: Build,
                                  budget: int,
@@ -38,23 +38,23 @@ def print_upgrade_recommendations(advisor: UpgradeAdvisor,
     if remaining <= 500:
         print(f"\n  預算已充分利用，升級空間有限")
         return
-    
+
     print(f"\n  【根據您的預算和使用需求的升級建議】")
     print(f"  剩餘預算：NT${remaining:,} 可用於升級")
     print()
-    
+
     recommendations = advisor.get_smart_recommendations(
         build, budget, remaining, usage
     )
-    
+
     if not recommendations:
         print(f"  目前配置已是此預算最佳分配")
         return
-    
+
     total_upgrade_cost = 0
     for rec in recommendations:
         total_upgrade_cost += rec["cost"]
-        
+
         print(f"  【第 {rec['priority']} 優先】{rec['category']} 升級")
         print(f"    目前：{rec['current'].name[:45]}")
         print(f"           NT${rec['current'].price:,}")
@@ -64,19 +64,19 @@ def print_upgrade_recommendations(advisor: UpgradeAdvisor,
         print(f"    理由：{rec['reason']}")
         print(f"    情感評分：{rec['sentiment_improvement']}")
         print()
-    
+
     total_after = build.total_price + total_upgrade_cost
     print(f"  若全部升級：NT${build.total_price:,} → NT${total_after:,} "
           f"(增加 +NT${total_upgrade_cost:,})")
     print(f"  剩餘預算：NT${budget - total_after:,}")
-    
+
     # 提供逐項選擇選項
     print(f"\n  您也可以選擇性地進行部分升級")
     for rec in recommendations:
         print(f"    • 升級 {rec['category']}：+NT${rec['cost']:,}")
 
- 
- 
+
+
 def export_results(builds: list[Build], scorer: SentimentScorer,
                    checker: CompatibilityChecker,
                    output_path: str = "ga_results.xlsx"):
@@ -100,8 +100,8 @@ def export_results(builds: list[Build], scorer: SentimentScorer,
 
     print(f"\n[Export] 結果已存至 {output_path}")
 
- 
- 
+
+
 def get_user_input():
     # 預算
     while True:
@@ -113,7 +113,7 @@ def get_user_input():
             break
         except ValueError:
             print("請輸入數字")
- 
+
     # 用途
     print("\n用途選擇：")
     print("1. 遊戲")
@@ -132,7 +132,7 @@ def get_user_input():
             break
         else:
             print("請輸入 1、2 或 3")
- 
+
     # 散熱偏好
     print("\n散熱偏好：")
     print("1. 自動選擇")
@@ -185,21 +185,21 @@ def get_user_input():
             print("請輸入 1 或 2")
 
     return budget, usage, cooling_prefer, reserve
- 
 
- 
- 
+
+
+
 def main():
     print("=" * 60)
     print("  GA 電腦組裝推薦系統")
     print("=" * 60)
- 
+
     # 載入資料
     catalog = PartCatalog(DB_PATH)
     scorer  = SentimentScorer(MATCHED_FILES, DB_PATH)
     checker = CompatibilityChecker()
     advisor = UpgradeAdvisor(catalog, scorer, checker)
- 
+
     # 使用者輸入
     budget, usage, cooling_prefer, reserve = get_user_input()
     psu_tier = "standard"
@@ -224,14 +224,15 @@ def main():
         generations=300,
         elite_k=2,
         crossover_rate=0.8,
-        mutation_rate=0.30,
+        # mutation_rate 不手動帶入：交給 GARecommender._pick_mutation_rate()
+        # 依預算自動決定（≥60000 用 0.15，否則維持 0.30）。依據見該方法註解。
         cooling_prefer=cooling_prefer,
         psu_tier=psu_tier,
     )
- 
+
     print("\n[GA] 開始演化...")
     top5 = ga.run(verbose=True)
- 
+
     print("\n\n【推薦結果 Top 5】")
     for i, build in enumerate(top5, 1):
         print_build(build, scorer, checker, rank=i)
@@ -255,7 +256,7 @@ def main():
     export_results(top5, scorer, checker, "ga_results.xlsx")
     plot_fitness(ga)
     plot_budget_breakdown(top5[0])
- 
- 
+
+
 if __name__ == "__main__":
     main()

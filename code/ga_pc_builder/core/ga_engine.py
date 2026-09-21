@@ -57,7 +57,7 @@ class GARecommender:
         generations: int = 300,
         elite_k: int = 2,
         crossover_rate: float = 0.8,
-        mutation_rate: float = 0.25,
+        mutation_rate: float | None = None,
         tournament_k: int = 5,
         cooling_prefer: str = "auto",
         psu_tier: str = "standard",
@@ -76,7 +76,7 @@ class GARecommender:
         self.generations = generations
         self.elite_k     = elite_k
         self.cr          = crossover_rate
-        self.mr          = mutation_rate
+        self.mr          = mutation_rate if mutation_rate is not None else self._pick_mutation_rate()
         self.tourn_k     = tournament_k
         self.cooling_prefer = cooling_prefer
         self.psu_tier = psu_tier
@@ -163,6 +163,23 @@ class GARecommender:
         if pool:
             b.parts[cooling_cat] = random.choice(pool)
         return b
+
+    def _pick_mutation_rate(self) -> float:
+        """依預算決定突變率（未手動指定 mutation_rate 時使用）。
+
+        依據：多種子（6 seeds）穩健性測試，遊戲情境下對 40000/45000/50000/
+        60000/80000/100000 六個預算點各跑 baseline(0.30) vs 降突變率(0.15)
+        比較。結果：
+          - 40000：0.15 輸多贏少（2/6），且波動大（std 0.02~0.03）
+          - 45000/50000：0.15 勝率贏（5/6）但分數本身波動仍大，不夠穩定
+          - 60000 以上：0.15 六種子全勝（6/6），標準差只有 0.0004~0.002
+        預算越緊，可行解空間越窄、越需要較有破壞力的突變才跳得出局部最優；
+        預算寬鬆時，低突變率能穩定微調、不打散已經找到的好解。
+        45000~50000 這段還不夠穩定，所以分界點保守抓在 60000，不是實測到
+        的最低翻轉點——原始數據在 docs/CONVERGENCE_ANALYSIS.md 跟對話紀錄裡。
+        只驗證過 usage=遊戲，其他 usage 邏輯上應該同理但還沒實測。
+        """
+        return 0.15 if self.budget >= 60000 else 0.30
 
     def _pick_cooling(self) -> str:
         if self.cooling_prefer in ("風冷", "水冷"):

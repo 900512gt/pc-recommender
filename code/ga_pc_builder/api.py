@@ -121,7 +121,8 @@ def recommend(request: Request, req: RecommendRequest):
         generations=300,
         elite_k=2,
         crossover_rate=0.8,
-        mutation_rate=0.30,
+        # mutation_rate 不手動帶入：交給 GARecommender._pick_mutation_rate()
+        # 依預算自動決定（≥60000 用 0.15，否則維持 0.30）。依據見該方法註解。
         cooling_prefer=req.cooling_prefer,
         psu_tier="standard",
         custom_weights=req.weights.dict() if req.weights else None,
