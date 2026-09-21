@@ -32,6 +32,15 @@ class EvidenceStore:
                 self._by_id[rec.pop("evidence_id")] = rec
         print(f"[RAG] 載入 {len(self._by_id)} 則原始評論供佐證面板查詢")
 
+    def for_model(self, model: str, limit: int = 30) -> list[dict]:
+        """某型號的佐證評論，給型號詳情頁用。
+
+        聊天視窗只塞得下幾則，詳情頁有整頁空間，所以 limit 放寬。取樣一樣是正負評
+        交錯，避免整頁都是同一面倒的意見。
+        """
+        comments = [rec for rec in self._by_id.values() if rec.get("model") == model]
+        return _pick(comments, limit)
+
     def collect(self, chunks: list[dict]) -> list[dict]:
         """依型號分組回傳佐證評論。
 

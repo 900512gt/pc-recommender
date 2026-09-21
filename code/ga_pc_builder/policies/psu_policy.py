@@ -55,10 +55,13 @@ def _estimate_watt(cpu, gpu) -> float:
     return max(psu_floor, sustained_floor)
 
 
-def psu_score(psu, cpu, gpu, psu_tier: str = "standard") -> float:
-    if not psu:
-        return 0.0
+def required_watt(cpu, gpu, psu_tier: str = "standard") -> float:
+    """這套配置需要多少瓦，含 psu_tier 的需求上調。
 
+    從 psu_score() 裡抽出來的，行為完全相同。抽出來是因為升級建議需要「需求瓦數」
+    本身、而不是換算後的分數：psu_score 對供電不足一律回 -0.5，換了更吃電的顯卡
+    之後分數還是 -0.5，比較分數看不出情況變糟，會把 RTX5080 推薦給 350W 電源。
+    """
     estimated = _estimate_watt(cpu, gpu)
 
     # psu_tier：想留升級空間 → 需求上調，允許更大電源不被罰
@@ -66,6 +69,14 @@ def psu_score(psu, cpu, gpu, psu_tier: str = "standard") -> float:
         estimated *= 1.15
     elif psu_tier == "flagship":
         estimated *= 1.30
+    return estimated
+
+
+def psu_score(psu, cpu, gpu, psu_tier: str = "standard") -> float:
+    if not psu:
+        return 0.0
+
+    estimated = required_watt(cpu, gpu, psu_tier)
 
     try:
         psu_watt = float(psu.specs.get("wattage", 0) or 0)
