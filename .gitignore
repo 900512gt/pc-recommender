@@ -170,3 +170,7 @@ __marimo__/
 
 # --- manual_qa_eval.py 手動跑的評估報告，本機產物不進版控 ---
 /data/rag_eval_results/
+
+# --- BERT 訓練產出的模型權重，單檔超過 GitHub 100MB 上限，不進版控 ---
+# 需要時用 train_bert.py 重新訓練即可產生
+bert_train/*.pt
