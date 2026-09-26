@@ -26,7 +26,10 @@ dist/
 downloads/
 eggs/
 .eggs/
-parts/
+# 來自 Python .gitignore 範本的 zc.buildout 產物目錄，只會出現在專案根目錄。
+# 開頭的斜線務必保留：寫成 parts/ 會連 web/app/parts/（Next.js 的「零件口碑」
+# 路由，含列表頁與型號詳情頁）一起擋掉，之後在那裡新增的檔案會被靜默忽略。
+/parts/
 sdist/
 var/
 wheels/
