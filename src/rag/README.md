@@ -12,17 +12,17 @@
 v1（純字串/TF-IDF、不拆語意面向的舊 chunk 格式，`data/rag_chunks.jsonl`）
 已經整套移除，不再是選項。
 
-## 啟動方式（用 `scripts/start_all.sh`，會同時開 RAG 聊天 + GA 推薦服務）
+## 啟動方式（在專案根目錄用 `dev.sh`，會同時開 GA API、RAG 聊天與 Next.js 前端）
 
 ```bash
 # 預設 OpenAI embedding + Chroma（chroma_v2），不用加任何環境變數
-./scripts/start_all.sh
+./dev.sh
 
 # TF-IDF 備援版本
-RAG_RETRIEVER=v2 ./scripts/start_all.sh
+RAG_RETRIEVER=v2 ./dev.sh
 ```
 
-啟動後開瀏覽器連 `http://localhost:8000`（GA 推薦頁面會連到 RAG 聊天）。`Ctrl+C` 會把兩個服務一起關掉。
+啟動後開瀏覽器連 Next.js 前端（預設 `http://localhost:3000`，被佔用時會自動換號，看終端機輸出）。`Ctrl+C` 會把三個服務一起關掉。
 
 ## 前置作業
 

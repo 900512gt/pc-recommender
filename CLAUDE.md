@@ -27,8 +27,8 @@ OPENAI_API_KEY=sk-你的金鑰
 # RAG 聊天服務（FastAPI + SSE，預設 port 8001）
 python src/rag/server.py
 
-# 同時啟動 RAG 服務（8001）與 GA 推薦服務（8000，位於另一個 repo ga_test）
-./scripts/start_all.sh
+# 本機一次啟動 GA API（8000）、RAG 服務（8001）與 Next.js 前端（web/）
+./dev.sh
 
 # 蒸餾 RAG chunks（需 OPENAI_API_KEY，跑全部 ~161 個型號）
 python src/rag/distill_chunks.py
@@ -62,17 +62,19 @@ python ga_db_manager.py show GPU RTX5080
 
 ### 原始資料（各模組的私有輸入，不走 data/）
 - `src/database/input/` — coolpc 商品資料、PTT 評論、巴哈評論
-- `src/filter/output/` — filter pipeline 的中間產物
+- `src/filter/output/` — filter pipeline 的中間產物（`annotated.jsonl` 保留了 GPT 判成無關的推文）
 - `data/coolpc_data.xlsx`、`data/ptt_comment.xlsx`、`data/ga_ptt_models.xlsx` — 較早期的原始檔，部分模組仍使用
+- `bahamut_data/` — 巴哈原始 xlsx，`bert_train/stage_A_to_C/step3_model_match.py` 的上游輸入
+
+**巴哈 `matched_part1~3.jsonl` 有兩份相同的副本，兩份都有程式在讀**：`match_data/`（GA 的 `config.py`、`Dockerfile.ga`）與 `src/database/input/baha_comment/`（`merge_and_score.py`、RAG 的 distill / evidence / timeline）。更新巴哈資料時兩處都要換。
 
 ### 重建資料庫的流程
 1. （可選）更新原始資料：爬蟲、PTT 抓取、新晶片跑分等
 2. 建立 v1：在 `src/database/` 執行 `python ga_db_builder.py`，然後 `python merge_and_score.py`，最後 `python ga_db_manager.py score data/raw/scores.csv`
 3. 建立 v2：在專案根目錄執行 `python src/benchmark_collection/merge_benchmark.py`，再執行 `python src/benchmark_collection/merge_tgp.py` 補入 GPU 的 `tgp_watts` 欄位（此步驟容易被漏掉，因為它不在原本規劃的流程圖裡，但 v2 的 GPU 條目都依賴它）
 
-### 已過期的副本（保留為時光膠囊，不要使用）
-- `src/database/output/` — 過期的 v1 與 scores.csv 副本
-- `src/nsga/input/` — 過期的 v2 副本，配 nsga/test.py 廢棄腳本
+### 已封存的檔案
+2026-10-01 整理時，無關或重複的檔案（舊的 `src/database/output/`、根目錄 `coolpc_data.xlsx`、`test.html`、舊的 `scripts/start_all.sh` 等）已移到 repo 外的 `~/Desktop/pc-recommender_archive/`，保持原本的相對路徑。
 
 ## RAG 系統架構
 
@@ -80,7 +82,7 @@ python ga_db_manager.py show GPU RTX5080
 
 `retriever_chroma_v2.py` 是正式環境用的檢索器：先呼叫 `gpt-4o-mini` 從問題裡抽取「提到的型號＋極性（include/exclude）」跟「所屬零件類別」；有指名型號（include）就直接回傳該型號全部 chunk；沒有的話用 OpenAI embedding 查 Chroma 做語意搜尋，依型號去重、動態擴大候選池，湊滿 `top_k` 個不同型號各自回傳完整 chunk 組。`retriever_v2.py`（TF-IDF 版本，不需要 Chroma）是備援 backend，兩者都讀同一份 `rag_chunks_v2.jsonl`。舊版純字串/TF-IDF、不拆語意面向的 v1 實作已經整套移除。
 
-`chat.py` 是純邏輯模組（組 prompt、呼叫 `gpt-5.5` 串流），不含任何介面程式碼，對話歷史最多保留 6 輪。實際對外服務的是 `server.py`：FastAPI + `POST /api/chat`，以 SSE（Server-Sent Events）將逐步累積的文字串流回前端；`GET /health` 供健康檢查。前端目前有兩份：`src/rag/static/widget.js`（可嵌入任意網頁的浮動小工具）與 `ga_test` repo 裡 Next.js 重寫的聊天元件，兩者呼叫同一支 API。
+`chat.py` 是純邏輯模組（組 prompt、呼叫 `gpt-5.5` 串流），不含任何介面程式碼，對話歷史最多保留 6 輪。實際對外服務的是 `server.py`：FastAPI + `POST /api/chat`，以 SSE（Server-Sent Events）將逐步累積的文字串流回前端；`GET /health` 供健康檢查。前端目前有兩份：`src/rag/static/widget.js`（可嵌入任意網頁的浮動小工具）與 `web/` 裡 Next.js 重寫的聊天元件，兩者呼叫同一支 API。
 
 回歸測試：`python -m pytest src/rag/test_retrieval_v2.py -v`（需要 `.env` 設定 `OPENAI_API_KEY`，會真的呼叫 API）。
 
