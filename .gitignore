@@ -177,3 +177,6 @@ __marimo__/
 # --- BERT 訓練產出的模型權重，單檔超過 GitHub 100MB 上限，不進版控 ---
 # 需要時用 train_bert.py 重新訓練即可產生
 bert_train/*.pt
+# build_aspect_dataset.py 的輸出（可重新產生）與 train_aspect.py 存的模型
+bert_train/aspect_dataset/
+bert_train/bert_*_aspect/
