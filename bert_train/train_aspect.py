@@ -151,12 +151,16 @@ def train(args):
         model_name, num_labels=3, id2label=ID2LABEL, label2id=LABEL2ID,
     ).to(device)
 
-    # class weight：減量後「未提及」仍然最多
-    counts = [1, 1, 1]  # 平滑
-    for d in train_data:
-        counts[LABEL2ID[d["label"]]] += 1
-    w = torch.tensor([sum(counts) / c for c in counts], dtype=torch.float)
-    criterion = nn.CrossEntropyLoss(weight=(w / w.sum() * 3).to(device))
+    # 訓練資料已經把「未提及」減量到正負面的 3 倍，預設不再加 class weight，
+    # 兩個一起用等於補償兩次，模型會太容易判成正面/負面。要比較可以加 --class-weight。
+    weight = None
+    if args.class_weight:
+        counts = [1, 1, 1]  # 平滑
+        for d in train_data:
+            counts[LABEL2ID[d["label"]]] += 1
+        w = torch.tensor([sum(counts) / c for c in counts], dtype=torch.float)
+        weight = (w / w.sum() * 3).to(device)
+    criterion = nn.CrossEntropyLoss(weight=weight)
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr)
     total_steps = len(train_dl) * args.epochs
@@ -205,9 +209,22 @@ def train(args):
     report("val（最佳 epoch）", val_data, *predict(model, val_dl, device))
     test_m = report("test", test_data, *predict(model, test_dl, device))
 
+    # test_hard：整理資料時拿掉的難題（高風險、巴哈不相關但有面向），答案沿用 p3 標註。
+    # 這些標註本身就可疑，分數只用來看「test 因為拿掉難題而高估了多少」，不是準確率。
+    hard_m = None
+    if (data_dir / "test_hard.jsonl").exists():
+        hard_data = load_jsonl(data_dir / "test_hard.jsonl", args.sample)
+        hard_logits, hard_labels = predict(model, loader(hard_data), device)
+        hard_m = report("test_hard（參考用）", hard_data, hard_logits, hard_labels)
+        print("  依拿掉的原因：")
+        for why in sorted({d["held_reason"] for d in hard_data}):
+            idx = np.array([d["held_reason"] == why for d in hard_data])
+            sub = metrics(hard_logits[idx], hard_labels[idx])
+            print(f"    {why:<22} n={idx.sum():>5}  Macro-F1 {sub['macro_f1']:.3f}  正負向正確率 {sub['polarity_acc']:.3f}")
+
     with open(save_dir / "result.json", "w", encoding="utf-8") as f:
-        json.dump({"model_name": model_name, "args": vars(args),
-                   "best_val_macro_f1": best_f1, "test": test_m}, f, ensure_ascii=False, indent=2)
+        json.dump({"model_name": model_name, "args": vars(args), "best_val_macro_f1": best_f1,
+                   "test": test_m, "test_hard": hard_m}, f, ensure_ascii=False, indent=2)
     print(f"\n✓ 模型與結果已存: {save_dir}")
 
 
@@ -220,5 +237,6 @@ if __name__ == "__main__":
     ap.add_argument("--batch", type=int, default=32)
     ap.add_argument("--lr", type=float, default=2e-5)
     ap.add_argument("--max-len", type=int, default=416, help="資料最長約 412 個 token")
+    ap.add_argument("--class-weight", action="store_true", help="loss 加上類別權重（預設不加）")
     args = ap.parse_args()
     train(args)
