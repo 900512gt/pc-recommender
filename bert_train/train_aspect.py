@@ -106,7 +106,17 @@ def metrics(logits, labels):
     }
 
 
-def report(name, data, logits, labels):
+def distribution(ids):
+    """各類別佔比，例如 {'未提及': 0.92, '正面': 0.05, '負面': 0.03}"""
+    return {ID2LABEL[i]: float((ids == i).mean()) for i in range(3)}
+
+
+def fmt_dist(d):
+    return "、".join(f"{k} {v:.1%}" for k, v in d.items())
+
+
+def report(name, data, logits, labels, by=("source", "category")):
+    """印出整體與分項分數，並回傳同一份內容（存進 result.json 用）"""
     m = metrics(logits, labels)
     print(f"\n=== {name} ===")
     print(f"  Acc {m['acc']:.3f}  Macro-F1 {m['macro_f1']:.3f}  正負向正確率 {m['polarity_acc']:.3f}")
@@ -114,12 +124,14 @@ def report(name, data, logits, labels):
         labels, logits.argmax(axis=1), labels=[0, 1, 2],
         target_names=[ID2LABEL[i] for i in range(3)], digits=3, zero_division=0,
     ))
-    for key in ("source", "category"):
+    for key in by:
         print(f"  依 {key}：")
+        m[f"by_{key}"] = {}
         for val in sorted({d[key] for d in data}):
             idx = np.array([d[key] == val for d in data])
-            sub = metrics(logits[idx], labels[idx])
-            print(f"    {val:<6} n={idx.sum():>6}  Macro-F1 {sub['macro_f1']:.3f}  正負向正確率 {sub['polarity_acc']:.3f}")
+            sub = dict(metrics(logits[idx], labels[idx]), n=int(idx.sum()))
+            m[f"by_{key}"][val] = sub
+            print(f"    {val:<22} n={sub['n']:>6}  Macro-F1 {sub['macro_f1']:.3f}  正負向正確率 {sub['polarity_acc']:.3f}")
     return m
 
 
@@ -172,6 +184,7 @@ def train(args):
 
     save_dir = HERE / f"bert_{args.model}_aspect"
     best_f1 = -1.0
+    history = []  # 每個 epoch 的 val 分數
     for epoch in range(args.epochs):
         model.train()
         total_loss = 0
@@ -182,6 +195,12 @@ def train(args):
             optimizer.zero_grad()
             with torch.autocast(device_type=device.type, enabled=device.type == "cuda"):
                 loss = criterion(model(**batch).logits.float(), labels)
+            if not torch.isfinite(loss):
+                raise SystemExit(
+                    f"\n✗ Epoch {epoch+1} Step {i+1} 的 loss 變成 {loss.item()}，訓練已停止。\n"
+                    f"  常見原因是學習率太高，可以試 --lr 1e-5；"
+                    f"目前為止最好的模型{'在 ' + str(save_dir) if best_f1 >= 0 else '尚未產生'}。"
+                )
             scaler.scale(loss).backward()
             scaler.unscale_(optimizer)
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
@@ -196,8 +215,14 @@ def train(args):
         print(f"Epoch {epoch+1} 平均 Loss: {total_loss / len(train_dl):.4f}")
 
         # 每個 epoch 用 val 評估，只留 val Macro-F1 最好的那一輪
-        m = metrics(*predict(model, val_dl, device))
+        val_logits, val_labels = predict(model, val_dl, device)
+        m = metrics(val_logits, val_labels)
+        pred_dist = distribution(val_logits.argmax(axis=1))
         print(f"  val: Acc {m['acc']:.3f}  Macro-F1 {m['macro_f1']:.3f}  正負向正確率 {m['polarity_acc']:.3f}")
+        # 正面、負面的預測比例如果接近 0，就是全部猜未提及在偷懶
+        print(f"    預測分布：{fmt_dist(pred_dist)}")
+        print(f"    實際分布：{fmt_dist(distribution(val_labels))}")
+        history.append(dict(m, epoch=epoch + 1, train_loss=total_loss / len(train_dl), pred_dist=pred_dist))
         if m["macro_f1"] > best_f1:
             best_f1 = m["macro_f1"]
             model.save_pretrained(save_dir)
@@ -206,7 +231,7 @@ def train(args):
 
     # 載回最好的那一輪，test 只在這裡跑一次
     model = BertForSequenceClassification.from_pretrained(save_dir).to(device)
-    report("val（最佳 epoch）", val_data, *predict(model, val_dl, device))
+    val_m = report("val（最佳 epoch）", val_data, *predict(model, val_dl, device))
     test_m = report("test", test_data, *predict(model, test_dl, device))
 
     # test_hard：整理資料時拿掉的難題（高風險、巴哈不相關但有面向），答案沿用 p3 標註。
@@ -214,17 +239,12 @@ def train(args):
     hard_m = None
     if (data_dir / "test_hard.jsonl").exists():
         hard_data = load_jsonl(data_dir / "test_hard.jsonl", args.sample)
-        hard_logits, hard_labels = predict(model, loader(hard_data), device)
-        hard_m = report("test_hard（參考用）", hard_data, hard_logits, hard_labels)
-        print("  依拿掉的原因：")
-        for why in sorted({d["held_reason"] for d in hard_data}):
-            idx = np.array([d["held_reason"] == why for d in hard_data])
-            sub = metrics(hard_logits[idx], hard_labels[idx])
-            print(f"    {why:<22} n={idx.sum():>5}  Macro-F1 {sub['macro_f1']:.3f}  正負向正確率 {sub['polarity_acc']:.3f}")
+        hard_m = report("test_hard（參考用）", hard_data, *predict(model, loader(hard_data), device),
+                        by=("held_reason", "source", "category"))
 
     with open(save_dir / "result.json", "w", encoding="utf-8") as f:
-        json.dump({"model_name": model_name, "args": vars(args), "best_val_macro_f1": best_f1,
-                   "test": test_m, "test_hard": hard_m}, f, ensure_ascii=False, indent=2)
+        json.dump({"model_name": model_name, "args": vars(args), "val_history": history,
+                   "val": val_m, "test": test_m, "test_hard": hard_m}, f, ensure_ascii=False, indent=2)
     print(f"\n✓ 模型與結果已存: {save_dir}")
 
 
