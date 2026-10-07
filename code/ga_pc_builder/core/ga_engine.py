@@ -62,15 +62,27 @@ class GARecommender:
         cooling_prefer: str = "auto",
         psu_tier: str = "standard",
         custom_weights: dict | None = None,
+        aspect_prefs: dict | None = None,
     ):
         assert usage in USAGE_WEIGHTS, f"usage 必須是 {list(USAGE_WEIGHTS.keys())}"
         self.catalog     = catalog
         self.scorer      = scorer
         self.checker     = checker
         self.usage       = usage
-        # BERT 面向情感：依使用情境切換面向權重（遊戲重效能、工作重保固、文書重CP值）
-        if hasattr(scorer, "set_usage"):
-            scorer.set_usage(usage)
+        # 使用者指定在意的面向，例如 {"GPU": ["穩定"]}：該類別零件的口碑加重這些面向。
+        # 存在這裡而不是設到 scorer 上——scorer 是全服務共用的，不能帶單次請求的狀態。
+        # 資料不夠的面向（scorer.selectable 沒列的）直接忽略，選了也分不出型號差異。
+        selectable = getattr(scorer, "selectable", {})
+        self.aspect_prefs = {
+            cat: picked for cat, aspects in (aspect_prefs or {}).items()
+            if (picked := [a for a in aspects if a in selectable.get(cat, [])])
+        }
+        # 整機口碑只看評論資料夠的類別（有可指定面向的類別：顯卡、CPU、主機板、記憶體）。
+        # 機殼、電源、散熱、SSD 的評論太少，分數多半是類別平均加上幾則評論的雜訊，
+        # 讓它們參與平均只會稀釋有資料的類別。空集合表示不限制（舊版口碑檔沒有這項資訊）。
+        # 記憶體另外排除：它由 pick_ram 的規則直接決定，不經過 fitness 競爭，
+        # 口碑分數改變不了選哪一款，算進平均只會佔掉其他類別的份量。
+        self._sent_cats = set(selectable) - {"記憶體"}
         self.budget      = budget
         self.pop_size    = pop_size
         self.generations = generations
@@ -347,8 +359,9 @@ class GARecommender:
         return score / total_w if total_w > 0 else 0.0
 
     def _sentiment_score(self, build: Build) -> float:
-        scores = [self.scorer.get(cat, part.short_name)
-                  for cat, part in build.parts.items()]
+        scores = [self.scorer.get(cat, part.short_name, aspects=self.aspect_prefs.get(cat))
+                  for cat, part in build.parts.items()
+                  if not self._sent_cats or cat in self._sent_cats]
         return float(np.mean(scores)) if scores else 0.5
 
     def _cp_score(self, build: Build) -> float:

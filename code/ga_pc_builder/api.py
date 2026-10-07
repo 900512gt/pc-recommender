@@ -102,6 +102,9 @@ class RecommendRequest(BaseModel):
     weights: Optional[UsageWeights] = Field(
         None, description="效能/口碑/CP值滑桿，留空則使用該用途的預設權重"
     )
+    aspect_prefs: Optional[dict[str, list[str]]] = Field(
+        None, description='使用者在意的口碑面向，例如 {"GPU": ["穩定"]}；資料不夠的面向會被忽略'
+    )
 
 
 # ── endpoint ─────────────────────────────────────────────────────────────────
@@ -126,6 +129,7 @@ def recommend(request: Request, req: RecommendRequest):
         cooling_prefer=req.cooling_prefer,
         psu_tier="standard",
         custom_weights=req.weights.dict() if req.weights else None,
+        aspect_prefs=req.aspect_prefs,
     )
     # 實際套用到 fitness 的權重（滑桿換算後的結果），給前端／本機測試頁顯示用，
     # 方便肉眼確認滑桿真的有正確換算成 fitness 權重，不是只是介面上動一動。
@@ -198,6 +202,8 @@ def recommend(request: Request, req: RecommendRequest):
         },
         "upgrade_tiers": upgrade_tiers,
         "resolved_weights": resolved_weights,
+        # 實際套用的面向偏好（請求裡資料不夠的面向已被濾掉），讓前端能告訴使用者哪些有生效
+        "applied_aspect_prefs": ga.aspect_prefs,
     }
 
 

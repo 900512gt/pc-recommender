@@ -37,12 +37,20 @@ CAT_MAP = {
 
 # ─────────────────────────────────────────────
 # 三種用途的 Fitness 權重
+#
+# 效能／口碑／CP值 三項預設等權，不依用途預設「使用者比較重視哪一項」——
+# 那是使用者的偏好，由前端的三個滑桿調整（GARecommender._apply_custom_weights）。
+# 用途只決定 perf_weights：哪些零件的效能對這個用途比較重要（遊戲看顯卡、工作看 CPU）。
+# 改這裡的 w_perf / w_sent / w_cp 時，web/app/builder/page.tsx 的
+# USAGE_DEFAULT_WEIGHTS 要一起改。
 # ─────────────────────────────────────────────
+_EQUAL = 0.70 / 3   # 扣掉 w_budget 0.20、w_compat 0.10 之後三項平分
+
 USAGE_WEIGHTS = {
     "遊戲": {
-        "w_perf":   0.35,
-        "w_sent":   0.20,
-        "w_cp":     0.15,
+        "w_perf":   _EQUAL,
+        "w_sent":   _EQUAL,
+        "w_cp":     _EQUAL,
         "w_budget": 0.20,
         "w_compat": 0.10,
         "perf_weights": {
@@ -52,9 +60,9 @@ USAGE_WEIGHTS = {
         }
     },
     "工作": {
-        "w_perf":   0.30,
-        "w_sent":   0.20,
-        "w_cp":     0.20,
+        "w_perf":   _EQUAL,
+        "w_sent":   _EQUAL,
+        "w_cp":     _EQUAL,
         "w_budget": 0.20,
         "w_compat": 0.10,
         "perf_weights": {
@@ -64,9 +72,9 @@ USAGE_WEIGHTS = {
         }
     },
     "一般文書": {
-        "w_perf":   0.15,
-        "w_sent":   0.20,
-        "w_cp":     0.35,
+        "w_perf":   _EQUAL,
+        "w_sent":   _EQUAL,
+        "w_cp":     _EQUAL,
         "w_budget": 0.20,
         "w_compat": 0.10,
         "perf_weights": {

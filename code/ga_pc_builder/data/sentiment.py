@@ -1,71 +1,79 @@
 """
-情感分數計算器 v2 — 使用 BERT 面向級情感分析
+情感分數計算器 v3 — 使用面向級口碑分數
 
-與舊版差異：
-  舊版：統計正/負/中立標籤 + GP/BP 加權 → 單一籠統分數
-  新版：BERT 分析評論內容 → 五大面向分數（效能/溫控/噪音/保固/CP值）
-        → 依使用情境加權 → 情感分數
+與 v2 的差異：
+  v2：BERT 預測 → 合併成五大面向（效能/溫控/噪音/保固/CP值）→ 依使用情境加權
+  v3：面向標註直接加總 → 各類別用自己的面向（CPU 6 個、風冷 4 個…）→ 各面向等權平均
+      不再合併成五大面向，也不再依使用情境預設面向權重。
 
 資料來源：
-  part_sentiment.json — 由 fine-tune 後的中研院 BERT 跑全部 50,593 則評論產生
-  每個分數背後都有「幾則正面、幾則負面」的統計依據（counts 欄位）
+  part_aspect_sentiment.json — 由 bert_train/build_part_sentiment.py 產生。
+  每個面向的分數已依評價則數往類別平均修正過（則數少的不會出現極端分數）。
+
+類別內正規化：
+  每個面向在同類別的型號之間做 min-max（該面向最好的型號 1、最差的 0），與 GA 對
+  效能的處理方式相同。原始分數各面向的水準差很多（顯卡的穩定普遍 0.2 上下、溫度
+  0.75 上下），不正規化的話平均起來每個型號都差不多，口碑分不出高下。
+  型號分數是正規化後各面向的平均；沒有任何評論的型號拿該類別的平均。
+
+使用者指定面向：
+  get(..., aspects=[...]) 指定的面向佔一半，其餘面向的平均佔另一半（PREF_SHARE）。
+  不是只看指定的面向：在意穩定的人不代表完全不管效能、VRAM。
 
 相容性：
-  保留 get(category, model) 介面，既有程式（api.py、ga_engine.py）無需修改。
-  新增 get_dimensions() 可取得面向明細，供進階使用。
+  get(category, model) 介面不變，既有程式（api.py、ga_engine.py）無需修改。
 """
 import json
 import math
+import re
 from pathlib import Path
 from collections import defaultdict
 from typing import Optional
 
 from config import CAT_MAP
 
-DIMENSIONS = ["效能", "溫控", "噪音", "保固", "CP值"]
+# 一個型號在某面向的正負評價達這個則數才算「有資料」：
+# 正規化的上下界只看有資料的型號，可供使用者指定的面向也依此判斷。
+MIN_MENTIONS = 10
 
-USAGE_DIM_WEIGHTS = {
-    "遊戲":     {"效能": 0.35, "溫控": 0.20, "噪音": 0.15, "保固": 0.10, "CP值": 0.20},
-    "工作":     {"效能": 0.30, "溫控": 0.25, "噪音": 0.10, "保固": 0.20, "CP值": 0.15},
-    "一般文書": {"效能": 0.10, "溫控": 0.15, "噪音": 0.20, "保固": 0.25, "CP值": 0.30},
-}
-
-MIN_SAMPLES = 10
+# 使用者指定面向時，指定的面向佔該零件口碑的比重；其餘面向的平均佔剩下的。
+# 不指定時每個面向各佔 1/N（顯卡 7 個面向就是 14%），指定後提高到一半。
+PREF_SHARE = 0.5
 
 
 class SentimentScorer:
     """
-    情感分數計算器（BERT 面向版）
+    情感分數計算器（面向口碑版）
 
-    介面與舊版相容：
       scorer.get(category, model) -> float [0,1]
-
-    新增介面：
-      scorer.get_dimensions(category, model) -> dict 面向明細
-      scorer.set_usage(usage) -> 切換使用情境（影響加權）
+      scorer.get(category, model, aspects=["穩定"]) -> 加重指定的面向
+      scorer.get_aspects(category, model) -> dict 面向明細（正規化後）
+      scorer.selectable[category] -> 資料夠、可以讓使用者指定的面向
     """
 
     def __init__(self, jsonl_paths: list = None,
                  db_path: Optional[Path] = None,
-                 sentiment_path: Optional[Path] = None,
-                 usage: str = "遊戲"):
-        self.usage = usage if usage in USAGE_DIM_WEIGHTS else "遊戲"
-
-        self.dimensions: dict = {}
+                 sentiment_path: Optional[Path] = None):
+        self.aspects: dict = {}
+        self.raw_aspects: dict = {}
         self.sample_counts: dict = {}
         self.scores: dict = {}
         self.counts: dict = {}
+        self.category_default: dict = {}
+        self.category_aspects: dict = {}
+        self.selectable: dict = {}
+        self._resolved: dict = {}
 
         if sentiment_path is None:
-            sentiment_path = Path(__file__).parent / "part_sentiment.json"
+            sentiment_path = Path(__file__).parent / "part_aspect_sentiment.json"
 
-        self._load_bert_scores(sentiment_path)
+        self._load_aspect_scores(sentiment_path, db_path)
 
-        if not self.dimensions:
-            print("[SentimentScorer] 無 BERT 面向分數，回退至舊版標籤統計")
+        if not self.scores:
+            print("[SentimentScorer] 無面向口碑分數，回退至舊版標籤統計")
             self._load_legacy(jsonl_paths, db_path)
 
-    def _load_bert_scores(self, path):
+    def _load_aspect_scores(self, path, db_path):
         if not Path(path).exists():
             print(f"[SentimentScorer] 找不到 {path}")
             return
@@ -79,42 +87,73 @@ class SentimentScorer:
             category, model = key_str.split("|", 1)
             key = (category, model)
 
-            dims = item.get("dimensions", {})
-            counts = item.get("counts", {})
-
-            filtered_dims = {}
-            sample_n = {}
-            for dim in DIMENSIONS:
-                c = counts.get(dim, {})
-                n = int(c.get("正", 0)) + int(c.get("负", 0))
-                sample_n[dim] = n
-                if n >= MIN_SAMPLES:
-                    filtered_dims[dim] = float(dims.get(dim, 0.5))
-                else:
-                    filtered_dims[dim] = 0.5
-
-            self.dimensions[key] = filtered_dims
+            sample_n = {a: int(v["正面"]) + int(v["負面"]) for a, v in item["aspects"].items()}
+            self.raw_aspects[key] = {a: float(v["score"]) for a, v in item["aspects"].items()}
             self.sample_counts[key] = sample_n
             self.counts[key] = {
                 "review_count": item.get("review_count", 0),
                 "samples": sample_n,
             }
 
-        self._recompute_scores()
-        print(f"[SentimentScorer] 載入 BERT 面向分數：{len(self.dimensions)} 個零件"
-              f"（情境：{self.usage}）")
+        bounds = self._aspect_bounds(self._db_models(db_path))
 
-    def _recompute_scores(self):
-        weights = USAGE_DIM_WEIGHTS[self.usage]
-        self.scores = {}
-        for key, dims in self.dimensions.items():
-            total = sum(weights[d] * dims.get(d, 0.5) for d in DIMENSIONS)
-            self.scores[key] = round(total, 4)
+        def normalize(category, raw):
+            out = {}
+            for aspect, value in raw.items():
+                lo, hi = bounds.get((category, aspect), (None, None))
+                # 有資料的型號不到兩個就沒有可比的對象，這個面向對所有型號都是 0.5（不影響排序）
+                out[aspect] = 0.5 if lo is None else max(0.0, min((value - lo) / (hi - lo), 1.0))
+            return out
 
-    def set_usage(self, usage: str):
-        if usage in USAGE_DIM_WEIGHTS and usage != self.usage:
-            self.usage = usage
-            self._recompute_scores()
+        for category, prior in data.get("_prior", {}).items():
+            self.category_aspects[category] = normalize(category, prior["aspects"])
+            self.category_default[category] = (sum(self.category_aspects[category].values())
+                                               / len(prior["aspects"]))
+
+        for key, raw in self.raw_aspects.items():
+            own = normalize(key[0], raw)
+            average = self.category_aspects.get(key[0], {})
+            # 評價不到 MIN_MENTIONS 則的面向用類別平均的位置，不用自己的分數：
+            # 有些面向各型號的分數很接近（顯卡的穩定全距只有 0.17），兩三則評價造成的
+            # 些微差距正規化後會被放大成全場最高或最低。
+            self.aspects[key] = {
+                a: own[a] if self.sample_counts[key][a] >= MIN_MENTIONS else average.get(a, 0.5)
+                for a in raw
+            }
+            self.scores[key] = sum(self.aspects[key].values()) / len(raw)
+
+        print(f"[SentimentScorer] 載入面向口碑分數：{len(self.scores)} 個零件")
+
+    @staticmethod
+    def _db_models(db_path) -> set:
+        """GA 資料庫裡的 (類別, 型號)。口碑檔另外含資料庫沒在賣的型號（舊顯卡等），
+        正規化只在 GA 實際會挑的型號之間比。讀不到資料庫就回傳空集合（用全部型號）。"""
+        if not db_path or not Path(db_path).exists():
+            return set()
+        with open(db_path, encoding="utf-8") as f:
+            db = json.load(f)
+        return {(cat, item.get("ptt_model", ""))
+                for db_cat, cat in CAT_MAP.items() for item in db.get(db_cat, [])}
+
+    def _aspect_bounds(self, db_models: set) -> dict:
+        """回傳 {(類別, 面向): (最低, 最高)}，順便定出各類別可供指定的面向。"""
+        pool = [k for k in self.raw_aspects if not db_models or k in db_models]
+        values = defaultdict(list)
+        n_models = defaultdict(int)
+        for key in pool:
+            n_models[key[0]] += 1
+            for aspect, value in self.raw_aspects[key].items():
+                if self.sample_counts[key][aspect] >= MIN_MENTIONS:
+                    values[(key[0], aspect)].append(value)
+
+        bounds = {}
+        for (category, aspect), vals in values.items():
+            if len(vals) >= 2 and max(vals) > min(vals):
+                bounds[(category, aspect)] = (min(vals), max(vals))
+                # 過半的型號有資料才開放指定，否則選了也分不出型號差異
+                if len(vals) * 2 >= n_models[category]:
+                    self.selectable.setdefault(category, []).append(aspect)
+        return bounds
 
     def _load_legacy(self, paths, db_path):
         if not paths:
@@ -178,33 +217,67 @@ class SentimentScorer:
             )
         ]
         if not candidates:
+            candidates = SentimentScorer._fallback_candidates(category, model, table)
+        if not candidates:
             return None
         return max(candidates, key=lambda k: len(k[1]))
 
-    def get(self, category: str, model: str, default: float = 0.5) -> float:
-        """取得零件的情感分數 [0,1]。介面與舊版完全相同。"""
+    @staticmethod
+    def _fallback_candidates(category: str, model: str, table: dict) -> list:
+        """原價屋商品名稱跟評論 key 的寫法常對不上，整串子字串比對會落空：
+          品牌是中文或多了系列名：「美光 Micron Crucial T500」vs "Micron T500"
+          記憶體用縮寫：「D4-3600」vs "DDR4-3600"
+          詞序不同：「Toshiba 2TB【P300系列】」vs "Toshiba P300 2TB"
+        依序退一步：(1) 評論 key 去掉品牌後整段比對 (2) 只比對 key 裡含數字的型號字。
+        前後都不能接英數字，避免 "NH-D15" 命中 "NH-D15S"。"""
+        name = " ".join(model.lower().split())
+        name = re.sub(r"(?<![a-z])d([45])-", r"ddr\1-", name)
+
+        def hit(word):
+            return re.search(rf"(?<![a-z0-9]){re.escape(word)}(?![a-z0-9])", name)
+
+        keys = [k for k in table if k[0] == category]
+        found = [k for k in keys if hit(k[1].lower())]
+        if found:
+            return found
+        found = [k for k in keys if len(k[1].split()) >= 2
+                 and hit(" ".join(k[1].lower().split()[1:]))]
+        if found:
+            return found
+        return [k for k in keys
+                if any(len(w) >= 4 and re.search(r"\d", w) and hit(w)
+                       for w in k[1].lower().split()[1:])]
+
+    def _resolve(self, category: str, model: str) -> tuple | None:
+        """商品名稱對到口碑檔的鍵。一次 GA 會查幾十萬次，模糊比對的結果要快取。"""
         key = (category, model)
-        if key in self.scores:
+        if key not in self._resolved:
+            self._resolved[key] = (key if key in self.scores
+                                   else self._best_fuzzy_key(category, model, self.scores))
+        return self._resolved[key]
+
+    def get(self, category: str, model: str, default: float = 0.5,
+            aspects: list | None = None) -> float:
+        """取得零件的情感分數 [0,1]。
+        aspects 有給（使用者指定在意的面向）就加重這些面向：它們的平均佔 PREF_SHARE，
+        其餘面向的平均佔剩下的。沒有評論的零件拿該類別的平均，而不是固定的 0.5。"""
+        key = self._resolve(category, model)
+        table = self.aspects.get(key) if key else self.category_aspects.get(category)
+        if aspects and table:
+            picked = [table[a] for a in aspects if a in table]
+            rest = [v for a, v in table.items() if a not in aspects]
+            if picked and rest:
+                return (PREF_SHARE * sum(picked) / len(picked)
+                        + (1 - PREF_SHARE) * sum(rest) / len(rest))
+            if picked:
+                return sum(picked) / len(picked)
+        if key:
             return self.scores[key]
-        best = self._best_fuzzy_key(category, model, self.scores)
-        return self.scores[best] if best else default
+        return self.category_default.get(category, default)
 
-    def get_dimensions(self, category: str, model: str) -> dict:
-        key = (category, model)
-        if key in self.dimensions:
-            return dict(self.dimensions[key])
-        best = self._best_fuzzy_key(category, model, self.dimensions)
-        return dict(self.dimensions[best]) if best else {d: 0.5 for d in DIMENSIONS}
-
-    def get_with_custom_weights(self, category: str, model: str,
-                                 weights: dict) -> float:
-        dims = self.get_dimensions(category, model)
-        total_w = sum(weights.values()) or 1.0
-        return round(
-            sum(weights.get(d, 0) * dims.get(d, 0.5) for d in DIMENSIONS) / total_w,
-            4
-        )
+    def get_aspects(self, category: str, model: str) -> dict:
+        key = self._resolve(category, model)
+        return dict(self.aspects.get(key) or self.category_aspects.get(category, {}))
 
     def get_sample_info(self, category: str, model: str) -> dict:
-        key = (category, model)
-        return self.sample_counts.get(key, {d: 0 for d in DIMENSIONS})
+        return dict(self.sample_counts.get((category, model), {}))

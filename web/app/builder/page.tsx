@@ -18,12 +18,12 @@ const INITIAL_USAGE: Usage = "工作";
  * 各用途的系統預設比重，對應 code/ga_pc_builder/config.py 的 USAGE_WEIGHTS
  * （w_perf / w_sent / w_cp）。那邊改權重時這裡要一起改。
  *
- * 滑桿一定要從這個位置出發，而且沒調整過就不送 weights。後端把三個滑桿當相對
- * 比例重新分配，停在 50/50/50 送出去會被換算成三者等重，用途之間的差異就沒了。
+ * 目前三項預設等權：系統不預設使用者比較重視哪一項，用途只影響後端「哪些零件的
+ * 效能比較重要」。滑桿從這個位置出發，沒調整過就不送 weights。
  */
 const USAGE_DEFAULT_WEIGHTS: Record<Usage, PreferenceWeights> = {
-  遊戲: { perf: 0.35, sent: 0.2, cp: 0.15 },
-  工作: { perf: 0.3, sent: 0.2, cp: 0.2 },
+  遊戲: { perf: 1, sent: 1, cp: 1 },
+  工作: { perf: 1, sent: 1, cp: 1 },
 };
 
 const PREFERENCES = [
@@ -32,7 +32,7 @@ const PREFERENCES = [
   { key: "cp", label: "CP 值" },
 ] as const;
 
-/** 把用途預設比重換算成滑桿位置（0~100，三項加總約 100）。遊戲是 50 / 29 / 21。 */
+/** 把用途預設比重換算成滑桿位置（0~100，三項加總約 100）。等權時是 33 / 33 / 33。 */
 function defaultSliders(usage: Usage): PreferenceWeights {
   const w = USAGE_DEFAULT_WEIGHTS[usage];
   const total = w.perf + w.sent + w.cp;
