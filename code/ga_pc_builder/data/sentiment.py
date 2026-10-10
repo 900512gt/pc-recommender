@@ -53,7 +53,13 @@ class SentimentScorer:
 
     def __init__(self, jsonl_paths: list = None,
                  db_path: Optional[Path] = None,
-                 sentiment_path: Optional[Path] = None):
+                 sentiment_path: Optional[Path] = None,
+                 common_scale: bool = False):
+        # False：每個面向各自 min-max（最好 1、最差 0）。
+        # True ：同類別的面向共用一把尺（該類別全距最大的面向），各型號分數很接近的面向
+        #        不會被硬拉開。顯卡的穩定全距只有 0.17，各自 min-max 會把 0.25 與 0.31
+        #        拉成 0.67 與 1.0，GA 會為了這點差距放棄一個等級的效能。
+        self.common_scale = common_scale
         self.aspects: dict = {}
         self.raw_aspects: dict = {}
         self.sample_counts: dict = {}
@@ -62,6 +68,9 @@ class SentimentScorer:
         self.category_default: dict = {}
         self.category_aspects: dict = {}
         self.selectable: dict = {}
+        self.raw_counts: dict = {}
+        self.category_raw: dict = {}
+        self._ranking: dict = {}
         self._resolved: dict = {}
 
         if sentiment_path is None:
@@ -90,6 +99,8 @@ class SentimentScorer:
             sample_n = {a: int(v["正面"]) + int(v["負面"]) for a, v in item["aspects"].items()}
             self.raw_aspects[key] = {a: float(v["score"]) for a, v in item["aspects"].items()}
             self.sample_counts[key] = sample_n
+            self.raw_counts[key] = {a: (int(v["正面"]), int(v["負面"]))
+                                    for a, v in item["aspects"].items()}
             self.counts[key] = {
                 "review_count": item.get("review_count", 0),
                 "samples": sample_n,
@@ -97,15 +108,28 @@ class SentimentScorer:
 
         bounds = self._aspect_bounds(self._db_models(db_path))
 
+        # 各類別全距最大的面向，common_scale 時當作該類別所有面向共用的尺
+        widest = defaultdict(float)
+        for (category, _), (lo, hi) in bounds.items():
+            widest[category] = max(widest[category], hi - lo)
+
         def normalize(category, raw):
             out = {}
             for aspect, value in raw.items():
                 lo, hi = bounds.get((category, aspect), (None, None))
                 # 有資料的型號不到兩個就沒有可比的對象，這個面向對所有型號都是 0.5（不影響排序）
-                out[aspect] = 0.5 if lo is None else max(0.0, min((value - lo) / (hi - lo), 1.0))
+                if lo is None:
+                    out[aspect] = 0.5
+                elif self.common_scale:
+                    # 以該面向的中點為 0.5，差距用類別共用的尺量：全距窄的面向落在 0.5 附近
+                    position = 0.5 + (value - (lo + hi) / 2) / widest[category]
+                    out[aspect] = max(0.0, min(position, 1.0))
+                else:
+                    out[aspect] = max(0.0, min((value - lo) / (hi - lo), 1.0))
             return out
 
         for category, prior in data.get("_prior", {}).items():
+            self.category_raw[category] = dict(prior["aspects"])
             self.category_aspects[category] = normalize(category, prior["aspects"])
             self.category_default[category] = (sum(self.category_aspects[category].values())
                                                / len(prior["aspects"]))
@@ -146,6 +170,8 @@ class SentimentScorer:
                 if self.sample_counts[key][aspect] >= MIN_MENTIONS:
                     values[(key[0], aspect)].append(value)
 
+        # 排名用的名單與正規化上下界是同一批型號（GA 會挑、該面向評價夠的）
+        self._ranking = dict(values)
         bounds = {}
         for (category, aspect), vals in values.items():
             if len(vals) >= 2 and max(vals) > min(vals):
@@ -257,18 +283,19 @@ class SentimentScorer:
         return self._resolved[key]
 
     def get(self, category: str, model: str, default: float = 0.5,
-            aspects: list | None = None) -> float:
+            aspects: list | None = None, pref_share: float = PREF_SHARE) -> float:
         """取得零件的情感分數 [0,1]。
-        aspects 有給（使用者指定在意的面向）就加重這些面向：它們的平均佔 PREF_SHARE，
-        其餘面向的平均佔剩下的。沒有評論的零件拿該類別的平均，而不是固定的 0.5。"""
+        aspects 有給（使用者指定在意的面向）就加重這些面向：它們的平均佔 pref_share，
+        其餘面向的平均佔剩下的；pref_share=1 表示只看指定的面向。
+        沒有評論的零件拿該類別的平均，而不是固定的 0.5。"""
         key = self._resolve(category, model)
         table = self.aspects.get(key) if key else self.category_aspects.get(category)
         if aspects and table:
             picked = [table[a] for a in aspects if a in table]
             rest = [v for a, v in table.items() if a not in aspects]
             if picked and rest:
-                return (PREF_SHARE * sum(picked) / len(picked)
-                        + (1 - PREF_SHARE) * sum(rest) / len(rest))
+                return (pref_share * sum(picked) / len(picked)
+                        + (1 - pref_share) * sum(rest) / len(rest))
             if picked:
                 return sum(picked) / len(picked)
         if key:
@@ -278,6 +305,34 @@ class SentimentScorer:
     def get_aspects(self, category: str, model: str) -> dict:
         key = self._resolve(category, model)
         return dict(self.aspects.get(key) or self.category_aspects.get(category, {}))
+
+    def aspect_evidence(self, category: str, model: str) -> dict | None:
+        """零件各面向口碑的原始依據，給前端顯示「這顆在這個面向到底好不好」用。
+        對不到任何評論的零件回傳 None。
+
+        score 是口碑檔裡的面向分數（已往類別平均修正），rank / ranked_total 是它在
+        同類別、該面向評價達 MIN_MENTIONS 則的型號之間的名次。評價不到 MIN_MENTIONS
+        則的面向 rank 是 None：GA 對這種面向用的是類別平均，硬排名次會誤導。
+        """
+        key = self._resolve(category, model)
+        if not key or key not in self.raw_aspects:
+            return None
+        rows = []
+        for aspect, score in self.raw_aspects[key].items():
+            pos, neg = self.raw_counts[key][aspect]
+            ranked = self._ranking.get((category, aspect), [])
+            enough = pos + neg >= MIN_MENTIONS
+            rows.append({
+                "aspect": aspect,
+                "positive": pos,
+                "negative": neg,
+                "score": round(score, 3),
+                "category_avg": round(self.category_raw.get(category, {}).get(aspect, 0.5), 3),
+                # 同分的型號名次相同（同晶片的 K / KF 版共用一組分數）
+                "rank": 1 + sum(v > score for v in ranked) if enough and ranked else None,
+                "ranked_total": len(ranked),
+            })
+        return {"model": key[1], "aspects": rows}
 
     def get_sample_info(self, category: str, model: str) -> dict:
         return dict(self.sample_counts.get((category, model), {}))

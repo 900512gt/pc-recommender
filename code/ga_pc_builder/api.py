@@ -109,6 +109,23 @@ class RecommendRequest(BaseModel):
 
 # ── endpoint ─────────────────────────────────────────────────────────────────
 
+@app.get("/api/aspects")
+def aspects():
+    """各類別可以讓使用者指定的口碑面向，給前端畫選項用。
+
+    清單由口碑資料決定（過半型號評價夠多的面向才開放），重建口碑檔後可能會變，
+    所以由後端提供而不是寫死在前端。記憶體不列：它由 pick_ram 的規則直接決定，
+    指定面向也改變不了選哪一款。
+    """
+    return {
+        "categories": [
+            {"category": cat, "aspects": picked}
+            for cat, picked in res.scorer.selectable.items()
+            if cat != "記憶體"
+        ]
+    }
+
+
 @app.post("/api/recommend")
 @limiter.limit("5/minute")
 def recommend(request: Request, req: RecommendRequest):
@@ -149,12 +166,27 @@ def recommend(request: Request, req: RecommendRequest):
     remaining = req.budget - best.total_price
 
     # Serialize parts (only what the frontend needs)
+    def _evidence(cat: str, part) -> dict | None:
+        """面向口碑的原始依據（則數、名次），讓使用者能核對指定的面向是否真的比較好。
+        只給有可指定面向的類別：其他類別評論太少，名次沒有參考價值。"""
+        if cat not in res.scorer.selectable or cat == "記憶體":
+            return None
+        ev = res.scorer.aspect_evidence(cat, part.short_name)
+        if not ev:
+            # 對不到任何評論：照實告訴前端，不要讓這個類別從畫面上默默消失
+            return {"model": None, "aspects": []}
+        picked = ga.aspect_prefs.get(cat, [])
+        for row in ev["aspects"]:
+            row["picked"] = row["aspect"] in picked
+        return ev
+
     parts = [
         {
             "category": cat,
             "name": part.name,
             "price": part.price,
             "score": round(float(res.scorer.get(cat, part.short_name)), 3),
+            "sentiment": _evidence(cat, part),
         }
         for cat, part in sorted(best.parts.items())
     ]

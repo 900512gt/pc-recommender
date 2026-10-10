@@ -5,9 +5,9 @@ import random
 import numpy as np
 from dataclasses import dataclass, field
 
-from config import USAGE_WEIGHTS, CAT_MAP
+from config import USAGE_WEIGHTS, CAT_MAP, PREF_TERM_SHARE
 from data.catalog import Part, PartCatalog
-from data.sentiment import SentimentScorer
+from data.sentiment import SentimentScorer, PREF_SHARE
 from policies.ram_policy import pick_ram, ram_score
 from policies.psu_policy import psu_score
 from policies.ssd_policy import ssd_score
@@ -63,6 +63,8 @@ class GARecommender:
         psu_tier: str = "standard",
         custom_weights: dict | None = None,
         aspect_prefs: dict | None = None,
+        pref_term_share: float = PREF_TERM_SHARE,
+        pref_share: float = PREF_SHARE,
     ):
         assert usage in USAGE_WEIGHTS, f"usage 必須是 {list(USAGE_WEIGHTS.keys())}"
         self.catalog     = catalog
@@ -83,6 +85,11 @@ class GARecommender:
         # 記憶體另外排除：它由 pick_ram 的規則直接決定，不經過 fitness 競爭，
         # 口碑分數改變不了選哪一款，算進平均只會佔掉其他類別的份量。
         self._sent_cats = set(selectable) - {"記憶體"}
+        # 使用者指定的面向在 fitness 裡獨立成一項，從口碑的權重分這個比例出來（見 fitness()）。
+        # 0 表示用舊做法：不獨立成項，只在該零件的口碑裡加重指定的面向（對照實驗用）。
+        self.pref_term_share = pref_term_share if self.aspect_prefs else 0.0
+        # 不獨立成項時（pref_term_share=0），指定的面向佔該零件口碑的比例；1 表示只看指定的面向
+        self.pref_share = pref_share
         self.budget      = budget
         self.pop_size    = pop_size
         self.generations = generations
@@ -239,9 +246,14 @@ class GARecommender:
         b_pen    = self._budget_penalty(build)
         c_pen, _ = self.checker.check(build,self.psu_tier)
 
+        # 使用者有指定面向時，口碑的權重分一部分給「指定面向」這一項。
+        # 舊做法是把指定的面向混進該零件的口碑平均，再跟其他類別平均，最好與最差的
+        # 型號在總分上只差 0.04，比任何一條規則扣分都小，實測有一半的情況選擇不變。
+        # 獨立成項後同樣的差距是 w_sent × pref_term_share（預設約 0.12）。
+        share = self.pref_term_share
         score = (
             w["w_perf"]   * perf
-          + w["w_sent"]   * sent
+          + w["w_sent"]   * ((1 - share) * sent + share * self._pref_score(build))
           + w["w_cp"]     * cp
           - w["w_budget"] * b_pen
           - w["w_compat"] * c_pen
@@ -359,9 +371,27 @@ class GARecommender:
         return score / total_w if total_w > 0 else 0.0
 
     def _sentiment_score(self, build: Build) -> float:
-        scores = [self.scorer.get(cat, part.short_name, aspects=self.aspect_prefs.get(cat))
+        # 指定面向已經獨立成項時，這裡只算一般口碑（各面向平均），避免同一個偏好算兩次
+        blend = self.pref_term_share == 0
+        scores = [self.scorer.get(cat, part.short_name,
+                                  aspects=self.aspect_prefs.get(cat) if blend else None,
+                                  pref_share=self.pref_share)
                   for cat, part in build.parts.items()
                   if not self._sent_cats or cat in self._sent_cats]
+        return float(np.mean(scores)) if scores else 0.5
+
+    def _pref_score(self, build: Build) -> float:
+        """使用者指定的面向上，這組配置的零件表現如何（0~1，各指定面向等權平均）。
+        分數是類別內正規化後的面向分數；評價不足的型號拿類別平均的位置，不加分也不扣分。"""
+        if not self.pref_term_share:
+            return 0.0
+        scores = []
+        for cat, aspects in self.aspect_prefs.items():
+            part = build.parts.get(cat)
+            if part is None:
+                continue
+            table = self.scorer.get_aspects(cat, part.short_name)
+            scores += [table[a] for a in aspects if a in table]
         return float(np.mean(scores)) if scores else 0.5
 
     def _cp_score(self, build: Build) -> float:
