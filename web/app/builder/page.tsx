@@ -1,12 +1,18 @@
 "use client";
 
-import { useId, useState, type CSSProperties, type FormEvent } from "react";
+import { useEffect, useId, useState, type CSSProperties, type FormEvent } from "react";
+import Link from "next/link";
 import {
+  fetchSelectableAspects,
   GaApiError,
   recommend,
+  type AspectEvidence,
+  type AspectPrefs,
   type CoolingPreference,
   type PreferenceWeights,
+  type RecommendedPart,
   type RecommendResponse,
+  type SelectableAspects,
   type Usage,
 } from "../lib/ga-api";
 import styles from "./preference-slider.module.css";
@@ -55,9 +61,21 @@ export default function BuilderPage() {
   const [usage, setUsage] = useState<Usage>(INITIAL_USAGE);
   const [weights, setWeights] = useState<PreferenceWeights>(() => defaultSliders(INITIAL_USAGE));
   const [cooling, setCooling] = useState<CoolingPreference>("auto");
+  const [selectable, setSelectable] = useState<SelectableAspects[]>([]);
+  const [aspectPrefs, setAspectPrefs] = useState<AspectPrefs>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<RecommendResponse | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchSelectableAspects().then((list) => {
+      if (!cancelled) setSelectable(list);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -78,6 +96,7 @@ export default function BuilderPage() {
         cooling_prefer: cooling,
         // 沒調整過（或三項全是 0）就不送，讓後端完整沿用該用途的預設比重
         ...(isCustomized(usage, weights) && total > 0 ? { weights } : {}),
+        ...(Object.keys(aspectPrefs).length > 0 ? { aspect_prefs: aspectPrefs } : {}),
       });
       setResult(res);
     } catch (err) {
@@ -94,70 +113,87 @@ export default function BuilderPage() {
         輸入預算與需求，透過遺傳演算法從零件資料庫中挑出最佳組合。
       </p>
 
-      <form
-        onSubmit={onSubmit}
-        className="mt-10 grid max-w-xl gap-6 rounded-lg border border-border p-6"
-      >
-        <label className="flex flex-col gap-2">
-          <span className="text-sm font-medium">預算（NT$）</span>
-          <input
-            type="number"
-            min={MIN_BUDGET}
-            step={1000}
-            value={budget}
-            onChange={(e) => setBudget(e.target.value)}
-            className="rounded-sm border border-border-strong px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent"
-          />
-        </label>
-
-        <label className="flex flex-col gap-2">
-          <span className="text-sm font-medium">用途</span>
-          <select
-            value={usage}
-            onChange={(e) => {
-              const next = e.target.value as Usage;
-              setUsage(next);
-              // 滑桿跟著跳到新用途的預設位置，不然會把上一個用途的比重帶過來
-              setWeights(defaultSliders(next));
-            }}
-            className="rounded-sm border border-border-strong px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent"
-          >
-            <option value="工作">工作</option>
-            <option value="遊戲">遊戲</option>
-          </select>
-        </label>
-
-        <PreferenceSliders usage={usage} value={weights} onChange={setWeights} />
-
-        <label className="flex flex-col gap-2">
-          <span className="text-sm font-medium">散熱偏好</span>
-          <select
-            value={cooling}
-            onChange={(e) => setCooling(e.target.value as CoolingPreference)}
-            className="rounded-sm border border-border-strong px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent"
-          >
-            <option value="auto">自動</option>
-            <option value="風冷">風冷</option>
-            <option value="水冷">水冷</option>
-          </select>
-        </label>
-
-        <button
-          type="submit"
-          disabled={loading}
-          className="rounded-sm bg-accent px-4 py-2 text-sm font-medium text-accent-inverse transition-opacity hover:opacity-90 disabled:opacity-50"
+      {/* 寬螢幕左邊放表單、右邊放結果，結果不必捲到表單底下才看得到；窄螢幕照原本上下排 */}
+      <div className="mt-10 grid items-start gap-10 lg:grid-cols-[24rem_minmax(0,1fr)]">
+        <form
+          onSubmit={onSubmit}
+          className="grid gap-6 rounded-lg border border-border p-6"
         >
-          {loading ? "生成中…" : "生成配置"}
-        </button>
-      </form>
+          <label className="flex flex-col gap-2">
+            <span className="text-sm font-medium">預算（NT$）</span>
+            <input
+              type="number"
+              min={MIN_BUDGET}
+              step={1000}
+              value={budget}
+              onChange={(e) => setBudget(e.target.value)}
+              className="rounded-sm border border-border-strong px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent"
+            />
+          </label>
 
-      {error && (
-        <div className="mt-6 max-w-xl rounded-sm border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
+          <label className="flex flex-col gap-2">
+            <span className="text-sm font-medium">用途</span>
+            <select
+              value={usage}
+              onChange={(e) => {
+                const next = e.target.value as Usage;
+                setUsage(next);
+                // 滑桿跟著跳到新用途的預設位置，不然會把上一個用途的比重帶過來
+                setWeights(defaultSliders(next));
+              }}
+              className="rounded-sm border border-border-strong px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent"
+            >
+              <option value="工作">工作</option>
+              <option value="遊戲">遊戲</option>
+            </select>
+          </label>
+
+          <PreferenceSliders usage={usage} value={weights} onChange={setWeights} />
+
+          {selectable.length > 0 && (
+            <AspectPicker options={selectable} value={aspectPrefs} onChange={setAspectPrefs} />
+          )}
+
+          <label className="flex flex-col gap-2">
+            <span className="text-sm font-medium">散熱偏好</span>
+            <select
+              value={cooling}
+              onChange={(e) => setCooling(e.target.value as CoolingPreference)}
+              className="rounded-sm border border-border-strong px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent"
+            >
+              <option value="auto">自動</option>
+              <option value="風冷">風冷</option>
+              <option value="水冷">水冷</option>
+            </select>
+          </label>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="rounded-sm bg-accent px-4 py-2 text-sm font-medium text-accent-inverse transition-opacity hover:opacity-90 disabled:opacity-50"
+          >
+            {loading ? "生成中…" : "生成配置"}
+          </button>
+        </form>
+
+        <div className="min-w-0">
+          {error && (
+            <div className="rounded-sm border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {error}
+            </div>
+          )}
+
+          {result && <ResultView result={result} />}
+
+          {!result && !error && (
+            <div className="rounded-lg border border-dashed border-border-strong px-6 py-16 text-center text-sm text-text-muted">
+              {loading
+                ? "正在搜尋最佳組合，大約需要 5~10 秒…"
+                : "設定好條件後按「生成配置」，推薦的零件、口碑依據與升級建議會顯示在這裡。"}
+            </div>
+          )}
         </div>
-      )}
-
-      {result && <ResultView result={result} />}
+      </div>
     </main>
   );
 }
@@ -249,9 +285,92 @@ function PreferenceSliders({
   );
 }
 
-function ResultView({ result }: { result: RecommendResponse }) {
+/**
+ * 口碑裡特別在意的面向（選填）。選了的面向佔該零件口碑的一半，其餘面向平均分另一半，
+ * 所以是「加重」而不是「只看」。選項只列後端認定評論資料夠的面向。
+ *
+ * 用可複選的切換鈕而不是下拉選單：每類只有 2~4 個選項，一眼看得完，也不必多點一下。
+ * 樣式與升級建議的級距按鈕相同（選取＝黑底），不另外發明新的選取狀態。
+ */
+function AspectPicker({
+  options,
+  value,
+  onChange,
+}: {
+  options: SelectableAspects[];
+  value: AspectPrefs;
+  onChange: (next: AspectPrefs) => void;
+}) {
+  const id = useId();
+  const picked = Object.keys(value).length > 0;
+
+  function toggle(category: string, aspect: string) {
+    const current = value[category] ?? [];
+    const nextList = current.includes(aspect)
+      ? current.filter((a) => a !== aspect)
+      : [...current, aspect];
+    const next = { ...value };
+    // 清空的類別整個拿掉，「沒選任何面向」才能用空物件判斷
+    if (nextList.length > 0) next[category] = nextList;
+    else delete next[category];
+    onChange(next);
+  }
+
   return (
-    <section className="mt-12 max-w-3xl">
+    <div role="group" aria-labelledby={`${id}-title`} className="flex flex-col gap-4">
+      <div className="flex items-baseline justify-between gap-4">
+        <span id={`${id}-title`} className="text-sm font-medium">
+          特別在意的口碑面向
+          <span className="ml-2 text-xs font-normal text-text-dim">選填</span>
+        </span>
+        {picked && (
+          <button
+            type="button"
+            onClick={() => onChange({})}
+            className="text-xs text-text-muted underline-offset-4 transition-colors hover:text-text hover:underline"
+          >
+            全部清除
+          </button>
+        )}
+      </div>
+
+      {options.map((opt) => (
+        <div key={opt.category} className="flex flex-col gap-2">
+          <span className="text-sm text-text-muted">{opt.category}</span>
+          <div className="flex flex-wrap gap-2">
+            {opt.aspects.map((aspect) => {
+              const on = value[opt.category]?.includes(aspect) ?? false;
+              return (
+                <button
+                  key={aspect}
+                  type="button"
+                  aria-pressed={on}
+                  onClick={() => toggle(opt.category, aspect)}
+                  className={`rounded-sm border px-3 py-1.5 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 ${
+                    on
+                      ? "border-accent bg-accent text-accent-inverse"
+                      : "border-border-strong text-text-muted hover:text-text"
+                  }`}
+                >
+                  {aspect}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+
+      <p className="text-xs text-text-dim">
+        選了的面向會佔該零件口碑的一半，其餘面向仍會列入。只列出論壇評論夠多、分得出型號差異的面向。
+      </p>
+    </div>
+  );
+}
+
+function ResultView({ result }: { result: RecommendResponse }) {
+
+  return (
+    <section>
       <div className="grid grid-cols-3 gap-px overflow-hidden rounded-lg border border-border bg-border">
         <Stat label="總價" value={`NT$${result.total_price.toLocaleString()}`} />
         <Stat label="預算" value={`NT$${result.budget.toLocaleString()}`} />
@@ -285,15 +404,15 @@ function ResultView({ result }: { result: RecommendResponse }) {
             <th className="py-2 font-medium">類別</th>
             <th className="py-2 font-medium">品項</th>
             <th className="py-2 font-medium text-right">價格</th>
-            <th className="py-2 font-medium text-right">口碑分數</th>
+            <th className="py-2 pl-4 font-medium whitespace-nowrap text-right">口碑分數</th>
           </tr>
         </thead>
         <tbody>
           {result.parts.map((part) => (
             <tr key={part.category} className="border-b border-border">
-              <td className="py-2 text-text-muted">{part.category}</td>
+              <td className="py-2 pr-4 whitespace-nowrap text-text-muted">{part.category}</td>
               <td className="py-2">{part.name}</td>
-              <td className="py-2 text-right">
+              <td className="py-2 pl-4 whitespace-nowrap text-right">
                 NT${part.price.toLocaleString()}
               </td>
               <td className="py-2 text-right">{part.score.toFixed(2)}</td>
@@ -302,8 +421,120 @@ function ResultView({ result }: { result: RecommendResponse }) {
         </tbody>
       </table>
 
+      <SentimentEvidence parts={result.parts} />
+
       <UpgradeSection result={result} />
     </section>
+  );
+}
+
+/**
+ * 口碑分數的依據：每個零件各面向的名次與正負評價則數，並連到該型號的原始評論。
+ * 讓使用者能自己核對「指定了 CP值，選到的這顆 CP值口碑到底好不好」，而不是只能相信系統。
+ *
+ * 名次照實顯示：指定的面向只佔整體評分的一小部分，選到的零件可能只是中段，
+ * 這時候就該顯示中段，不能只挑好看的講。
+ */
+function SentimentEvidence({ parts }: { parts: RecommendedPart[] }) {
+  // 對不到評論的零件只有一句說明，排到最後，不要佔掉第一格
+  const withEvidence = parts
+    .filter((p) => p.sentiment)
+    .sort((a, b) => Number(a.sentiment!.model === null) - Number(b.sentiment!.model === null));
+  if (withEvidence.length === 0) return null;
+  const anyPicked = withEvidence.some((p) => p.sentiment!.aspects.some((a) => a.picked));
+
+  return (
+    <div className="mt-10">
+      <h2 className="text-lg font-semibold">口碑依據</h2>
+      <p className="mt-1 text-sm text-text-muted">
+        {anyPicked ? "標示「已加重」的是你指定的面向。" : ""}
+        名次是在同類別、該面向論壇評價達 10 則的型號之間排的；評價不足的面向不排名，系統以類別平均計。
+      </p>
+
+      <div className="mt-4 grid items-start gap-4 md:grid-cols-2 2xl:grid-cols-3">
+        {withEvidence.map((part) => {
+          const { model, aspects } = part.sentiment!;
+          if (model === null) {
+            return (
+              <div key={part.category} className="rounded-lg border border-border p-4 text-sm">
+                <p className="font-medium text-text-muted">{part.category}</p>
+                <p className="mt-3 text-text-muted">
+                  這個型號在論壇上找不到對應的評論，口碑以{part.category}的類別平均計，
+                  指定的面向對它沒有作用。
+                </p>
+              </div>
+            );
+          }
+          // 指定的面向排最前面，其餘維持後端的順序
+          const rows = [...aspects.filter((a) => a.picked), ...aspects.filter((a) => !a.picked)];
+          return (
+            <div key={part.category} className="rounded-lg border border-border p-4 text-sm">
+              <div className="flex items-baseline justify-between gap-4">
+                <p className="font-medium">
+                  <span className="text-text-muted">{part.category}</span>
+                  <span className="ml-2">{model}</span>
+                </p>
+                <Link
+                  href={`/parts/${encodeURIComponent(model)}`}
+                  className="shrink-0 text-xs text-text-muted underline-offset-4 transition-colors hover:text-text hover:underline"
+                >
+                  看原始評論
+                </Link>
+              </div>
+              <ul className="mt-3 divide-y divide-border">
+                {rows.map((a) => (
+                  <AspectRow key={a.aspect} aspect={a} />
+                ))}
+              </ul>
+            </div>
+          );
+        })}
+      </div>
+
+      <p className="mt-3 text-xs text-text-dim">
+        指定的面向佔該零件口碑的一半，口碑又只是整體評分的一部分，預算與效能仍會影響選擇，
+        所以選到的零件不一定是該面向的第一名。面向裡的「CP值」是論壇網友的評價，
+        與偏好比重的「CP 值」（系統依價格與跑分計算）是兩回事。
+      </p>
+    </div>
+  );
+}
+
+function AspectRow({ aspect: a }: { aspect: AspectEvidence }) {
+  const total = a.positive + a.negative;
+  const diff = a.score - a.category_avg;
+  return (
+    <li className={`py-2 ${a.picked ? "" : "text-text-muted"}`}>
+      <div className="flex items-baseline justify-between gap-4">
+        <span className={a.picked ? "font-medium text-text" : ""}>
+          {a.aspect}
+          {a.picked && (
+            <span className="ml-2 rounded-sm bg-accent px-1.5 py-0.5 text-xs font-normal text-accent-inverse">
+              已加重
+            </span>
+          )}
+        </span>
+        <span className="tabular-nums">
+          {a.rank === null ? (
+            <span className="text-text-dim">評價不足</span>
+          ) : (
+            <>
+              第 <span className="font-semibold text-text">{a.rank}</span> / {a.ranked_total} 名
+            </>
+          )}
+        </span>
+      </div>
+      <p className="mt-0.5 text-xs tabular-nums text-text-dim">
+        {total === 0 ? "沒有評價" : `正面 ${a.positive} 則・負面 ${a.negative} 則`}
+        {a.rank !== null && (
+          <>
+            ・分數 {a.score.toFixed(2)}（
+            {Math.abs(diff) < 0.005 ? "與類別平均相同" : `${diff > 0 ? "高於" : "低於"}類別平均 ${a.category_avg.toFixed(2)}`}
+            ）
+          </>
+        )}
+      </p>
+    </li>
   );
 }
 
@@ -348,7 +579,7 @@ function UpgradeSection({ result }: { result: RecommendResponse }) {
         <span className="ml-1 text-text-dim">（這一級的項目可以一起買）</span>
       </p>
 
-      <div className="mt-4 grid gap-4">
+      <div className="mt-4 grid gap-4 xl:grid-cols-2">
         {tier.upgrades.map((u, i) => (
           <div key={i} className="rounded-lg border border-border p-4 text-sm">
             <p className="font-medium">
