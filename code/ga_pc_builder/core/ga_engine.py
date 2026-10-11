@@ -33,6 +33,15 @@ PRICE_CEILING = {
 }
 
 
+class _PoolView:
+    """只提供 get(category) 的輕量目錄，讓 pick_ram 在限定的候選裡挑"""
+    def __init__(self, pools: dict):
+        self._pools = pools
+
+    def get(self, category: str) -> list:
+        return self._pools.get(category, [])
+
+
 @dataclass
 class Build:
     parts: dict[str, Part] = field(default_factory=dict)
@@ -65,6 +74,7 @@ class GARecommender:
         aspect_prefs: dict | None = None,
         pref_term_share: float = PREF_TERM_SHARE,
         pref_share: float = PREF_SHARE,
+        repair: bool = True,
     ):
         assert usage in USAGE_WEIGHTS, f"usage 必須是 {list(USAGE_WEIGHTS.keys())}"
         self.catalog     = catalog
@@ -106,6 +116,11 @@ class GARecommender:
         self.weights     = dict(USAGE_WEIGHTS[usage])
         if custom_weights:
             self._apply_custom_weights(custom_weights)
+        # 合法性修補：交叉／突變／隨機產生之後，把個體修成「每個必選類別剛好一個、
+        # 散熱器剛好一個、CPU-主機板-記憶體-散熱器腳位與世代相容」。
+        # 相容性懲罰仍保留在 fitness 裡當後備（repair=False 時就回到原本只靠懲罰的行為）。
+        self.repair = repair
+        self._index_compat_pools()
         self.history_best: list[float] = []
         self.history_avg:  list[float] = []
         # 類別內 min-max 正規化用的範圍快取，只在初始化時掃一次 catalog，
@@ -162,6 +177,111 @@ class GARecommender:
             if prices:
                 self._price_range[cat] = (min(prices), max(prices))
 
+    # ── 合法性修補 ────────────────────────────────────────────────
+    @staticmethod
+    def _sockets(part) -> list:
+        """散熱器支援的腳位清單（資料庫是 list，保險起見也接受 JSON 字串）"""
+        s = part.specs.get("supported_sockets", []) if part else []
+        if isinstance(s, str):
+            import json
+            try:
+                s = json.loads(s)
+            except Exception:
+                s = [s]
+        return list(s or [])
+
+    def _index_compat_pools(self):
+        """預先依腳位／記憶體世代分好候選清單，修補時不用每次掃整個目錄"""
+        self._mb_by_socket: dict[str, list] = {}
+        for mb in self.catalog.get("主機板") or []:
+            sock = str(mb.specs.get("socket", "")).strip()
+            self._mb_by_socket.setdefault(sock, []).append(mb)
+        self._ram_by_type: dict[str, list] = {}
+        for ram in self.catalog.get("記憶體") or []:
+            t = str(ram.specs.get("type", "")).strip()
+            self._ram_by_type.setdefault(t, []).append(ram)
+
+    def _repair(self, b: Build) -> Build:
+        """把個體修成合法的組合（就地修改並回傳）。
+
+        1. 散熱器剛好一個：同時有風冷和水冷時隨機留一個；都沒有時依 _pick_cooling 補一個。
+        2. 必選類別缺漏時補上（記憶體走 pick_ram，其他類別隨機挑）；目錄該類別是空的就留空，
+           交給 fitness 的硬約束處理。
+        3. 以 CPU 為準修相容性：主機板腳位不符 → 換成同腳位的主機板（優先挑支援目前記憶體世代的）；
+           記憶體世代不符主機板 → 換成相符世代、且在預算比例內的記憶體；
+           散熱器不支援 CPU 腳位 → 換成同類別（風冷/水冷）有支援的散熱器。
+        找不到相容候選時不硬改，保留原狀，讓相容性懲罰去扣分。
+        """
+        # 1. 散熱器剛好一個
+        coolers = [c for c in COOLING_CATS if c in b.parts]
+        if len(coolers) > 1:
+            # 使用者指定了風冷或水冷就留指定的那個，auto 才隨機
+            keep = (self.cooling_prefer if self.cooling_prefer in coolers
+                    else random.choice(coolers))
+            for c in coolers:
+                if c != keep:
+                    del b.parts[c]
+        elif not coolers:
+            cat = self._pick_cooling()
+            pool = self.catalog.get(cat)
+            if pool:
+                b.parts[cat] = random.choice(pool)
+
+        # 2. 必選類別補齊
+        for cat in REQUIRED_CATS:
+            if cat in b.parts:
+                continue
+            if cat == "記憶體":
+                ram = pick_ram(self.catalog, b, self.budget)
+                if ram:
+                    b.parts["記憶體"] = ram
+            else:
+                pool = self.catalog.get(cat)
+                if pool:
+                    b.parts[cat] = random.choice(pool)
+
+        cpu = b.parts.get("CPU")
+        if not cpu:
+            return b
+        cpu_sock = str(cpu.specs.get("socket", "")).strip()
+
+        # 3a. CPU ↔ 主機板腳位
+        mb = b.parts.get("主機板")
+        if cpu_sock and mb and str(mb.specs.get("socket", "")).strip() != cpu_sock:
+            cands = self._mb_by_socket.get(cpu_sock, [])
+            ram = b.parts.get("記憶體")
+            ram_type = str(ram.specs.get("type", "")).strip() if ram else ""
+            same_mem = [m for m in cands if ram_type and ram_type in str(m.specs.get("memory_type", ""))]
+            pick_from = same_mem or cands
+            if pick_from:
+                b.parts["主機板"] = random.choice(pick_from)
+
+        # 3b. 記憶體 ↔ 主機板世代
+        mb = b.parts.get("主機板")
+        ram = b.parts.get("記憶體")
+        if mb and ram:
+            mb_mem = str(mb.specs.get("memory_type", "")).strip()
+            ram_type = str(ram.specs.get("type", "")).strip()
+            if mb_mem and ram_type and ram_type not in mb_mem:
+                cands = [r for t, rs in self._ram_by_type.items() if t and t in mb_mem for r in rs]
+                if cands:
+                    # 沿用 pick_ram 的挑法（優先 32GB、預算比例、雙通道偏好），只是候選限定為相符世代
+                    new_ram = pick_ram(_PoolView({"記憶體": cands}), b, self.budget)
+                    if new_ram:
+                        b.parts["記憶體"] = new_ram
+
+        # 3c. 散熱器 ↔ CPU 腳位
+        for cat in COOLING_CATS:
+            cooler = b.parts.get(cat)
+            if cooler is None:
+                continue
+            socks = self._sockets(cooler)
+            if cpu_sock and socks and cpu_sock not in socks:
+                cands = [c for c in (self.catalog.get(cat) or []) if cpu_sock in self._sockets(c)]
+                if cands:
+                    b.parts[cat] = random.choice(cands)
+        return b
+
     def _random_build(self) -> Build:
         b = Build()
         for cat in REQUIRED_CATS:
@@ -181,7 +301,7 @@ class GARecommender:
         pool = self.catalog.get(cooling_cat)
         if pool:
             b.parts[cooling_cat] = random.choice(pool)
-        return b
+        return self._repair(b) if self.repair else b
 
     def _pick_mutation_rate(self) -> float:
         """依預算決定突變率（未手動指定 mutation_rate 時使用）。
@@ -219,6 +339,13 @@ class GARecommender:
 
     def fitness(self, build: Build) -> float:
         w = self.weights
+
+        # 硬約束：缺少必選零件或散熱器（目錄某類別是空的、修補也補不回來時才會發生）
+        missing = sum(1 for c in REQUIRED_CATS if c not in build.parts)
+        if not any(c in build.parts for c in COOLING_CATS):
+            missing += 1
+        if missing:
+            return -20.0 - missing
 
         # 硬約束：嚴重超支（>20%）直接判定為極差解，不再計算其他加分
         # 避免高效能加分蓋過預算懲罰，導致 11 萬配置出現在 2 萬預算
@@ -420,14 +547,21 @@ class GARecommender:
         if random.random() > self.cr:
             return p1.copy(), p2.copy()
         c1, c2 = p1.copy(), p2.copy()
-        for cat in set(list(p1.parts) + list(p2.parts)):
+        # 「風冷」「水冷」視為同一個基因（散熱器），整組交換，
+        # 避免一邊拿到風冷、另一邊拿到水冷而變成同時有兩個散熱器。
+        # 排序：set 的走訪順序會隨 Python 每次啟動的雜湊種子改變，不排序的話
+        # 就算固定 random.seed，同樣的輸入每次跑出來的結果也不一樣
+        genes = [[c] for c in sorted(set(p1.parts) | set(p2.parts)) if c not in COOLING_CATS]
+        genes.append(list(COOLING_CATS))
+        for gene in genes:
             if random.random() < 0.5:
-                v1 = p1.parts.get(cat)
-                v2 = p2.parts.get(cat)
-                if v2: c1.parts[cat] = v2
-                elif cat in c1.parts: del c1.parts[cat]
-                if v1: c2.parts[cat] = v1
-                elif cat in c2.parts: del c2.parts[cat]
+                for cat in gene:
+                    v1 = p1.parts.get(cat)
+                    v2 = p2.parts.get(cat)
+                    if v2: c1.parts[cat] = v2
+                    elif cat in c1.parts: del c1.parts[cat]
+                    if v1: c2.parts[cat] = v1
+                    elif cat in c2.parts: del c2.parts[cat]
         return c1, c2
 
     def _mutate(self, build: Build) -> Build:
@@ -457,6 +591,9 @@ class GARecommender:
             pool = self.catalog.get(new_cool)
             if pool:
                 b.parts[new_cool] = random.choice(pool)
+        if self.repair:
+            # 每個子代都會經過突變，所以在這裡修補就涵蓋交叉產生的不合法組合
+            return self._repair(b)
         has_cooling = any(c in b.parts for c in COOLING_CATS)
         if not has_cooling:
             new_cool = self._pick_cooling()
