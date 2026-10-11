@@ -163,7 +163,6 @@ export default function BuilderPage() {
             >
               <option value="auto">自動</option>
               <option value="風冷">風冷</option>
-              <option value="水冷">水冷</option>
             </select>
           </label>
 

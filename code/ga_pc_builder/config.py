@@ -35,6 +35,15 @@ CAT_MAP = {
     "PSU":          "電源",
 }
 
+# 水冷開關。2026-10 決定不推薦水冷：
+#   - 評論太少：目錄 22 款水冷只有 5 款有評論（每款 5~17 則），BERT 在水冷上的 test 樣本只有 84 格
+#   - 資料庫 22 款水冷的 max_tdp 全部是空的，壓制力只能從冷排尺寸推估
+# 設成 False 時目錄不載入水冷，GA 只會配風冷，API 也不接受 cooling_prefer="水冷"。
+# GA、相容性檢查裡處理水冷的程式碼都保留，改回 True 就恢復。
+ENABLE_WATER_COOLING = False
+if not ENABLE_WATER_COOLING:
+    CAT_MAP.pop("WATER_COOLER", None)
+
 # ─────────────────────────────────────────────
 # 三種用途的 Fitness 權重
 #

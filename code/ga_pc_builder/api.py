@@ -97,7 +97,7 @@ class UsageWeights(BaseModel):
 
 class RecommendRequest(BaseModel):
     budget: int = Field(..., ge=10000, description="Total budget in NT$")
-    cooling_prefer: str = Field("auto", description="auto | 風冷 | 水冷")
+    cooling_prefer: str = Field("auto", description="auto | 風冷（水冷目前不提供，見 config.ENABLE_WATER_COOLING）")
     usage: str = Field("工作", description="工作 | 遊戲 | 一般文書")
     weights: Optional[UsageWeights] = Field(
         None, description="效能/口碑/CP值滑桿，留空則使用該用途的預設權重"
@@ -131,6 +131,9 @@ def aspects():
 def recommend(request: Request, req: RecommendRequest):
     if req.usage not in VALID_USAGES:
         raise HTTPException(status_code=400, detail=f"不支援的用途：{req.usage}")
+    valid_cooling = {"auto"} | {c for c in ("風冷", "水冷") if res.catalog.get(c)}
+    if req.cooling_prefer not in valid_cooling:
+        raise HTTPException(status_code=400, detail=f"不支援的散熱偏好：{req.cooling_prefer}")
     ga = GARecommender(
         catalog=res.catalog,
         scorer=res.scorer,

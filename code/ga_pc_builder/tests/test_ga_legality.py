@@ -24,7 +24,7 @@ import sys
 from pathlib import Path
 
 from config import DB_PATH
-from data.catalog import PartCatalog
+from data.catalog import Part, PartCatalog
 from data.sentiment import SentimentScorer
 from advisor.compatibility import CompatibilityChecker, form_factor_fits
 from core.ga_engine import GARecommender, Build, REQUIRED_CATS, COOLING_CATS
@@ -69,6 +69,13 @@ def _problems(build):
     return out
 
 
+def _water():
+    """測試用的水冷（目錄裡的水冷已由 config.ENABLE_WATER_COOLING 關掉，
+    但雙散熱器、交叉整組交換這些邏輯仍要測）"""
+    return Part(category="水冷", name="測試水冷 360", price=3000,
+                specs={"supported_sockets": ["AM4", "AM5", "LGA1700", "LGA1851"], "radiator_size": 360})
+
+
 def _part(catalog, cat, **spec):
     for p in catalog.get(cat):
         if all(p.specs.get(k) == v for k, v in spec.items()):
@@ -81,7 +88,7 @@ def test_crossover_never_gives_two_coolers():
     ga = _ga(repair=False)  # 不靠修補，單看交叉本身
     catalog, _ = _setup()
     air = Build({"風冷": catalog.get("風冷")[0]})
-    water = Build({"水冷": catalog.get("水冷")[0]})
+    water = Build({"水冷": _water()})
     for _ in range(500):
         c1, c2 = ga._crossover(air, water)
         for c in (c1, c2):
@@ -97,7 +104,7 @@ def test_repair_fixes_every_illegal_case():
     ddr4 = _part(catalog, "記憶體", type="DDR4")
     b = Build({
         "CPU": cpu, "主機板": bad_mb, "記憶體": ddr4,
-        "風冷": catalog.get("風冷")[0], "水冷": catalog.get("水冷")[0],
+        "風冷": catalog.get("風冷")[0], "水冷": _water(),
         # 故意缺 GPU / SSD / 電源 / 機殼
     })
     ga._repair(b)
@@ -142,13 +149,18 @@ def test_repair_can_be_turned_off():
 
 
 def test_repair_keeps_preferred_cooler():
+    """同時有風冷和水冷時，修補只留一個：指定風冷就留風冷"""
     random.seed(4)
     catalog, _ = _setup()
-    for prefer in ("風冷", "水冷"):
+    for prefer in ("風冷", "auto"):
         ga = _ga(cooling_prefer=prefer)
-        b = Build({"風冷": catalog.get("風冷")[0], "水冷": catalog.get("水冷")[0]})
-        ga._repair(b)
-        assert [c for c in COOLING_CATS if c in b.parts] == [prefer]
+        for _ in range(20):
+            b = Build({"風冷": catalog.get("風冷")[0], "水冷": _water()})
+            ga._repair(b)
+            kept = [c for c in COOLING_CATS if c in b.parts]
+            assert len(kept) == 1
+            if prefer == "風冷":
+                assert kept == ["風冷"]
 
 
 def test_ram_repair_uses_pick_ram_rules():

@@ -428,9 +428,7 @@
           <select id="cooling">
             <option value="auto">自動選擇</option>
             <option value="風冷">風冷</option>
-            <option id="opt-water" value="水冷" style="display:none">水冷</option>
           </select>
-          <span class="form-hint" id="cooling-hint" style="display:none">預算 NT$100,000 以上可選水冷</span>
         </div>
 
         <div class="form-group">
@@ -583,18 +581,7 @@
   });
 
   function updateCoolingOptions() {
-    const budget = parseInt(budgetInput.value, 10) || 0;
-    const optWater = document.getElementById('opt-water');
-    const coolingHint = document.getElementById('cooling-hint');
-    const coolingSelect = document.getElementById('cooling');
-    const showWater = budget >= 100000;
-
-    optWater.style.display = showWater ? '' : 'none';
-    coolingHint.style.display = showWater ? 'none' : (budget > 0 ? '' : 'none');
-
-    if (!showWater && coolingSelect.value === '水冷') {
-      coolingSelect.value = 'auto';
-    }
+    // 水冷已停用（config.ENABLE_WATER_COOLING = False），散熱偏好只剩自動／風冷，不用依預算切換選項
   }
 
   // ── Render results ─────────────────────────────────────────────────────────

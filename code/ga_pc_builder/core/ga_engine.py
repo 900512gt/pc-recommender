@@ -107,6 +107,11 @@ class GARecommender:
         self.cr          = crossover_rate
         self.mr          = mutation_rate if mutation_rate is not None else self._pick_mutation_rate()
         self.tourn_k     = tournament_k
+        # 目錄裡實際有零件的散熱類別（水冷可以由 config.ENABLE_WATER_COOLING 關掉）
+        self.cooling_available = [c for c in COOLING_CATS if catalog.get(c)]
+        if cooling_prefer in COOLING_CATS and cooling_prefer not in self.cooling_available:
+            raise ValueError(f"目前不提供{cooling_prefer}，散熱偏好請選 auto 或 "
+                             + " / ".join(self.cooling_available))
         self.cooling_prefer = cooling_prefer
         self.psu_tier = psu_tier
         # 淺拷貝：USAGE_WEIGHTS[usage] 是模組層級共用的常數字典，直接引用的話
@@ -356,6 +361,8 @@ class GARecommender:
     def _pick_cooling(self) -> str:
         if self.cooling_prefer in ("風冷", "水冷"):
             return self.cooling_prefer
+        if len(self.cooling_available) == 1:
+            return self.cooling_available[0]     # 例如水冷關掉時一律風冷
         # auto 模式：依預算分級決定風冷/水冷機率
         # 低預算水冷會吃掉預算導致失衡，故大幅偏向風冷；
         # 高預算則維持公平競爭，讓 GA 自由選擇。

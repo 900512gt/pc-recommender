@@ -1,7 +1,8 @@
 const GA_API_URL = process.env.NEXT_PUBLIC_GA_API_URL ?? "http://localhost:8000";
 
 export type Usage = "工作" | "遊戲";
-export type CoolingPreference = "auto" | "風冷" | "水冷";
+// 水冷已停用（後端 config.ENABLE_WATER_COOLING = False），送「水冷」會被 API 回 400
+export type CoolingPreference = "auto" | "風冷";
 
 /**
  * 效能／口碑／CP 值三個滑桿，各 0~100。是三者之間的相對比重，不是百分比：

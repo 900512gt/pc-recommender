@@ -178,18 +178,20 @@ def _ga(budget=50000, **kw):
 
 
 def test_case_repair_prefers_case_that_fits_radiator():
-    """換機殼時，有水冷就優先挑水冷排放得下的機殼"""
+    """換機殼時，有水冷就優先挑水冷排放得下的機殼（水冷目前關掉，用測試用的 360 水冷驗證邏輯）"""
     catalog, _ = _setup()
     random.seed(1)
-    ga = _ga(cooling_prefer="水冷")
-    rad360 = [w for w in catalog.get("水冷") if float(w.specs.get("radiator_size") or 0) >= 360]
+    ga = _ga()
+    water = Part(category="水冷", name="測試水冷 360", price=3000,
+                 specs={"supported_sockets": ["AM4", "AM5", "LGA1700", "LGA1851"], "radiator_size": 360})
     itx_only = [c for c in catalog.get("機殼") if supported_form_factors(c) == {"ITX"}]
-    assert rad360 and itx_only
+    assert itx_only
     for _ in range(50):
         b = ga._random_build()
         if b.parts["主機板"].specs.get("form_factor") == "Mini-ITX":
             continue
-        b.parts["水冷"] = random.choice(rad360)
+        b.parts.pop("風冷", None)
+        b.parts["水冷"] = water
         b.parts["機殼"] = random.choice(itx_only)
         ga._repair(b)
         case = b.parts["機殼"]

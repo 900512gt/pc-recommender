@@ -2,7 +2,7 @@
 
 
 import pandas as pd
-from config import DB_PATH, MATCHED_FILES
+from config import DB_PATH, MATCHED_FILES, ENABLE_WATER_COOLING
 from data.catalog import PartCatalog
 from data.sentiment import SentimentScorer
 from utils.plot_utils import plot_fitness, plot_budget_breakdown
@@ -124,20 +124,22 @@ def get_user_input():
     print("\n散熱偏好：")
     print("1. 自動選擇")
     print("2. 風冷")
-    print("3. 水冷")
+    if ENABLE_WATER_COOLING:
+        print("3. 水冷")
+    valid = "1/2/3" if ENABLE_WATER_COOLING else "1/2"
     while True:
-        choice = input("請選擇（1/2/3）：").strip()
+        choice = input(f"請選擇（{valid}）：").strip()
         if choice == "1":
             cooling_prefer = "auto"
             break
         elif choice == "2":
             cooling_prefer = "風冷"
             break
-        elif choice == "3":
+        elif choice == "3" and ENABLE_WATER_COOLING:
             cooling_prefer = "水冷"
             break
         else:
-            print("請輸入 1、2 或 3")
+            print(f"請輸入 {valid.replace('/', '、')}")
 
     # 預算策略
     print("\n預算策略：")
