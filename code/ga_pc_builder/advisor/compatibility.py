@@ -4,6 +4,80 @@
 import json
 
 
+# 主機板板型的別名。資料庫裡主機板寫「Mini-ITX」，機殼的 supported_mb 寫「ITX」，
+# 要先統一成同一種寫法才能比對。
+_FORM_ALIASES = {
+    "MINI-ITX": "ITX", "MINIITX": "ITX", "ITX": "ITX",
+    "M-ATX": "M-ATX", "MATX": "M-ATX", "MICRO-ATX": "M-ATX", "MICROATX": "M-ATX",
+    "ATX": "ATX",
+    "E-ATX": "E-ATX", "EATX": "E-ATX",
+}
+
+
+def normalize_form_factor(value) -> str:
+    """把板型字串統一成 ITX / M-ATX / ATX / E-ATX（認不得的就原樣轉大寫回傳）"""
+    key = str(value or "").strip().upper().replace(" ", "").replace("_", "-")
+    return _FORM_ALIASES.get(key, key)
+
+
+def supported_form_factors(case) -> set:
+    """機殼支援的主機板板型集合。supported_mb 可以是 list、JSON 字串或逗號分隔字串。"""
+    raw = case.specs.get("supported_mb", []) if case else []
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw)
+        except Exception:
+            raw = raw.replace("/", ",").split(",")
+    if raw is None:
+        raw = []
+    elif not isinstance(raw, (list, tuple, set)):
+        raw = [raw]          # 單一字串、數字等奇怪型別：當成只有一項
+    return {normalize_form_factor(x) for x in raw if str(x).strip()}
+
+
+# 主機板尺寸由小到大。主機板只能裝進同尺寸或更大的機殼（ATX 板放 E-ATX 機殼可以，反過來不行）。
+FORM_SIZE_ORDER = ["ITX", "M-ATX", "ATX", "E-ATX"]
+_FORM_RANK = {f: i for i, f in enumerate(FORM_SIZE_ORDER)}
+
+
+def case_max_form_factor(case) -> str | None:
+    """機殼最大能裝的主機板尺寸。
+
+    看兩個來源：機殼的分類（series，例如 ATX / E-ATX）和 supported_mb 裡最大的尺寸。
+    兩個都有時取比較小的那個——資料庫有 ATX 機殼的 supported_mb 被寫成連 E-ATX 都支援，
+    但分類是 ATX（商品名也寫「限ATX」），取小的才不會讓 E-ATX 主機板被判放得進去。
+    分類不是尺寸（例如「靜音」）時只看 supported_mb；兩邊都沒有就回傳 None。
+    """
+    sizes = []
+    series = normalize_form_factor(case.specs.get("series", "")) if case else ""
+    if series in _FORM_RANK:
+        sizes.append(series)
+    listed = [f for f in supported_form_factors(case) if f in _FORM_RANK]
+    if listed:
+        sizes.append(max(listed, key=_FORM_RANK.get))
+    return min(sizes, key=_FORM_RANK.get) if sizes else None
+
+
+def form_factor_fits(mb, case) -> bool:
+    """主機板放得進這個機殼嗎？規則：主機板尺寸 ≤ 機殼最大能裝的尺寸。
+    任一邊沒有資料時視為放得進（不亂扣分）。
+
+    不用字串包含：舊寫法 `"ATX" in "['ITX', 'M-ATX']"` 會因為「M-ATX」裡有「ATX」而誤判相容，
+    `"Mini-ITX" in "['ITX']"` 則永遠不成立。
+    """
+    form = normalize_form_factor(mb.specs.get("form_factor", "")) if mb else ""
+    if not form:
+        return True
+    if form not in _FORM_RANK:
+        # 認不得的尺寸（例如 SSI-EEB）：沒辦法比大小，只看機殼有沒有明確列出
+        supported = supported_form_factors(case)
+        return not supported or form in supported
+    max_form = case_max_form_factor(case)
+    if max_form is None:
+        return True
+    return _FORM_RANK[form] <= _FORM_RANK[max_form]
+
+
 class CompatibilityChecker:
 
     def check(self, build,psu_tier:str = "standard") -> tuple[float, list[str]]:
@@ -41,12 +115,9 @@ class CompatibilityChecker:
                 issues.append(f"記憶體 {ram_type} 與主機板 {mb_mem} 不符")
 
         # 機殼 ↔ 主機板 板型
-        if case and mb:
-            mb_form   = str(mb.specs.get("form_factor", "")).strip()
-            supported = str(case.specs.get("supported_mb", "")).strip()
-            if mb_form and supported and mb_form not in supported:
-                penalty += 0.5
-                issues.append(f"機殼不支援 {mb_form} 主機板")
+        if case and mb and not form_factor_fits(mb, case):
+            penalty += 0.5
+            issues.append(f"機殼不支援 {mb.specs.get('form_factor', '')} 主機板")
 
         # 機殼 ↔ GPU 長度
         if case and gpu:

@@ -6,7 +6,7 @@ GA 個體合法性測試（審查項目 A）。
 驗證：
   1. 交叉不會產生「同時有風冷和水冷」的子代
   2. 修補後：散熱器剛好一個、必選零件齊全、CPU-主機板腳位一致、記憶體世代符合主機板、
-     散熱器支援 CPU 腳位
+     散熱器支援 CPU 腳位、機殼放得下主機板板型
   3. 隨機產生、交叉、突變一路下來的族群，全部都是合法個體
   4. 缺少必選零件時，fitness 走硬約束（< -20）
   5. repair=False 時完全不呼叫修補（保留舊行為）
@@ -26,7 +26,7 @@ from pathlib import Path
 from config import DB_PATH
 from data.catalog import PartCatalog
 from data.sentiment import SentimentScorer
-from advisor.compatibility import CompatibilityChecker
+from advisor.compatibility import CompatibilityChecker, form_factor_fits
 from core.ga_engine import GARecommender, Build, REQUIRED_CATS, COOLING_CATS
 
 _catalog = _scorer = None
@@ -64,6 +64,8 @@ def _problems(build):
         socks = build.parts[c].specs.get("supported_sockets") or []
         if cpu and socks and cpu.specs.get("socket") not in socks:
             out.append("散熱器不支援 CPU 腳位")
+    if mb and build.parts.get("機殼") and not form_factor_fits(mb, build.parts["機殼"]):
+        out.append("機殼放不下主機板")
     return out
 
 

@@ -11,7 +11,7 @@ from data.sentiment import SentimentScorer, PREF_SHARE
 from policies.ram_policy import pick_ram, ram_score
 from policies.psu_policy import psu_score
 from policies.ssd_policy import ssd_score
-from advisor.compatibility import CompatibilityChecker
+from advisor.compatibility import CompatibilityChecker, form_factor_fits
 
 
 
@@ -209,7 +209,9 @@ class GARecommender:
            交給 fitness 的硬約束處理。
         3. 以 CPU 為準修相容性：主機板腳位不符 → 換成同腳位的主機板（優先挑支援目前記憶體世代的）；
            記憶體世代不符主機板 → 換成相符世代、且在預算比例內的記憶體；
-           散熱器不支援 CPU 腳位 → 換成同類別（風冷/水冷）有支援的散熱器。
+           散熱器不支援 CPU 腳位 → 換成同類別（風冷/水冷）有支援的散熱器；
+           機殼放不下主機板板型 → 換成放得下的機殼（優先挑顯卡、風冷高度、水冷排也放得下的）。
+           換主機板時也優先挑放得進目前機殼的，減少連帶換機殼。
         找不到相容候選時不硬改，保留原狀，讓相容性懲罰去扣分。
         """
         # 1. 散熱器剛好一個
@@ -252,7 +254,10 @@ class GARecommender:
             ram = b.parts.get("記憶體")
             ram_type = str(ram.specs.get("type", "")).strip() if ram else ""
             same_mem = [m for m in cands if ram_type and ram_type in str(m.specs.get("memory_type", ""))]
-            pick_from = same_mem or cands
+            case = b.parts.get("機殼")
+            # 優先順序：記憶體世代相符且放得進機殼 > 記憶體世代相符 > 同腳位
+            fits_case = [m for m in same_mem if form_factor_fits(m, case)] if case else []
+            pick_from = fits_case or same_mem or cands
             if pick_from:
                 b.parts["主機板"] = random.choice(pick_from)
 
@@ -280,7 +285,35 @@ class GARecommender:
                 cands = [c for c in (self.catalog.get(cat) or []) if cpu_sock in self._sockets(c)]
                 if cands:
                     b.parts[cat] = random.choice(cands)
+
+        # 3d. 機殼 ↔ 主機板板型（主機板已經跟著 CPU 定了，所以換機殼）
+        mb, case = b.parts.get("主機板"), b.parts.get("機殼")
+        if mb and case and not form_factor_fits(mb, case):
+            cands = [c for c in (self.catalog.get("機殼") or []) if form_factor_fits(mb, c)]
+            roomy = [c for c in cands if self._case_fits_others(c, b)]
+            pick_from = roomy or cands
+            if pick_from:
+                b.parts["機殼"] = random.choice(pick_from)
         return b
+
+    @staticmethod
+    def _case_fits_others(case, b: Build) -> bool:
+        """機殼的顯卡長度、風冷高度、水冷排長度限制，是否放得下目前的零件（換機殼時的偏好，不是硬性條件）"""
+        def num(part, key):
+            try:
+                return float(part.specs.get(key, 0) or 0) if part else 0.0
+            except (ValueError, TypeError):
+                return 0.0
+        gpu_len, max_gpu = num(b.parts.get("GPU"), "length_mm"), num(case, "max_gpu_mm")
+        if gpu_len and max_gpu and gpu_len > max_gpu:
+            return False
+        cool_h, max_cool = num(b.parts.get("風冷"), "height_mm"), num(case, "max_cooler_mm")
+        if cool_h and max_cool and cool_h > max_cool:
+            return False
+        rad, max_rad = num(b.parts.get("水冷"), "radiator_size"), num(case, "max_water_mm")
+        if rad and max_rad and rad > max_rad:
+            return False
+        return True
 
     def _random_build(self) -> Build:
         b = Build()
