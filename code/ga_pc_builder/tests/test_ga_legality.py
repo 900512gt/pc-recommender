@@ -190,8 +190,8 @@ from core.ga_engine import GARecommender
 random.seed(123)
 ga = GARecommender(PartCatalog(DB_PATH), SentimentScorer(), CompatibilityChecker(),
                    usage="遊戲", budget=50000, pop_size=40, generations=8)
-best = ga.run(verbose=False)[0]
-print("RESULT", sorted(p.name for p in best.parts.values()))
+top = ga.run(verbose=False)
+print("RESULT", [sorted(p.name for p in b.parts.values()) for b in top])
 """
 
 

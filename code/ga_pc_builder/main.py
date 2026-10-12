@@ -8,6 +8,7 @@ from data.sentiment import SentimentScorer
 from utils.plot_utils import plot_fitness, plot_budget_breakdown
 from advisor.compatibility import CompatibilityChecker
 from core.ga_engine import GARecommender, Build, COOLING_CATS
+from core.feasibility import min_budget as compute_min_budget
 from advisor.upgrade_advisor import UpgradeAdvisor
 
 
@@ -89,13 +90,13 @@ def export_results(builds: list[Build], scorer: SentimentScorer,
 
 
 
-def get_user_input():
+def get_user_input(min_budget: int = 10000):
     # 預算
     while True:
         try:
             budget = int(input("\n請輸入預算（NT$）：").strip())
-            if budget < 10000:
-                print("預算至少需要 10,000 元")
+            if budget < min_budget:
+                print(f"預算至少需要 {min_budget:,} 元（目前組得出相容配置的最低預算）")
                 continue
             break
         except ValueError:
@@ -163,7 +164,7 @@ def get_user_input():
                     if reserve >= budget:
                         print(f"  保留金額不能超過預算 {budget:,}")
                         continue
-                    if budget - reserve < 10000:
+                    if budget - reserve < min_budget:
                         print(f"  保留 {reserve:,} 後主機預算只剩 {budget-reserve:,}，太少了")
                         continue
                     break
@@ -190,7 +191,8 @@ def main():
     advisor = UpgradeAdvisor(catalog, scorer, checker)
 
     # 使用者輸入
-    budget, usage, cooling_prefer, reserve = get_user_input()
+    min_budget = compute_min_budget(catalog)[0] or 10000
+    budget, usage, cooling_prefer, reserve = get_user_input(min_budget)
     psu_tier = "standard"
 
     # 留有餘裕：GA 用「預算 - 保留額」配主機，剩餘留給升級建議

@@ -18,6 +18,8 @@ from advisor.compatibility import CompatibilityChecker, form_factor_fits
 REQUIRED_CATS = ["CPU", "GPU", "記憶體", "主機板", "SSD", "電源", "機殼"]
 OPTIONAL_CATS = ["HDD"]
 COOLING_CATS  = ["風冷", "水冷"]
+# fitness 的硬約束都回傳 -5 以下（散熱壓不住 -5、超支 20% 以上 -10、缺零件 -20），正常配置不會低於這個值
+HARD_FAIL = -5.0
 
 PRICE_CEILING = {
     "CPU":  22900,
@@ -127,6 +129,8 @@ class GARecommender:
         self.repair = repair
         self._index_compat_pools()
         self.history_best: list[float] = []
+        # 名人堂：run() 時記錄整個演化過程的好配置，前五名從這裡挑（見 _pick_top）
+        self._hall: dict[tuple, tuple[float, "Build"]] = {}
         self.history_avg:  list[float] = []
         # 類別內 min-max 正規化用的範圍快取，只在初始化時掃一次 catalog，
         # 避免每次 fitness 評估都重算（一次 run 約 90,000 次 fitness 呼叫）。
@@ -472,18 +476,7 @@ class GARecommender:
         cooler = build.parts.get("風冷") or build.parts.get("水冷")
         cpu    = build.parts.get("CPU")
         if cooler and cpu:
-            cpu_tdp      = float(cpu.specs.get("tdp", 65) or 65)
-            cooler_price = cooler.price
-
-            if cpu_tdp <= 65:
-                if cooler_price > 1200:
-                    score -= (cooler_price - 1200) / 60000 * 0.3
-            elif cpu_tdp <= 125:
-                if cooler_price > 2000:
-                    score -= (cooler_price - 2000) / 60000 * 0.3
-            else:
-                if cooler_price > 3000:
-                    score -= (cooler_price - 3000) / 60000 * 0.3
+            score -= self._cooler_price_penalty(cpu, cooler)
 
         #  預算偏緊時偏向風冷 
         water = build.parts.get("水冷")
@@ -511,6 +504,26 @@ class GARecommender:
         )
 
         return score
+
+    @staticmethod
+    def _cooler_price_penalty(cpu, cooler) -> float:
+        """散熱器價格合理性：低功耗 CPU 配太貴的散熱器要扣分。
+
+        用實際功耗分級（審查 #10）。原本用標稱 TDP：i7-14700F 標稱 65W、實際 219W，
+        被當成低功耗 CPU，配好一點的散熱器反而扣分。
+        分界 90W / 165W 對應原本的 65W / 125W 級距：AMD 每顆都維持原級距
+        （65W 級實際 ≤ 88W、105~120W 級實際 ≤ 162W），只有標稱值偏低的 Intel 被改到正確級距。
+        """
+        from data.cpu_power import get_actual_power
+        nominal   = float(cpu.specs.get("tdp", 65) or 65)
+        cpu_power = get_actual_power(cpu.name, fallback_tdp=nominal)
+        if cpu_power <= 90:
+            limit = 1200
+        elif cpu_power <= 165:
+            limit = 2000
+        else:
+            limit = 3000
+        return max(0.0, (cooler.price - limit) / 60000 * 0.3)
 
     def _perf_score(self, build: Build) -> float:
         pw = self.weights["perf_weights"]
@@ -642,11 +655,53 @@ class GARecommender:
                 b.parts[new_cool] = random.choice(pool)
         return b
 
+    @staticmethod
+    def _signature(build: Build) -> tuple:
+        """配置的識別碼：各類別的商品名稱。名稱相同就是使用者眼中的同一台"""
+        return tuple(sorted((cat, part.name) for cat, part in build.parts.items()))
+
+    def _remember(self, pop: list[Build], fits: list[float], idx: list[int], keep: int = 50):
+        """把這一代前 keep 名記進名人堂（同一組配置只記一次，fitness 是確定值）"""
+        for i in idx[:keep]:
+            sig = self._signature(pop[i])
+            if sig not in self._hall:
+                self._hall[sig] = (fits[i], pop[i].copy())
+
+    def _pick_top(self, n: int = 5) -> list[Build]:
+        """從名人堂挑前 n 名，保證彼此不是同一組配置。
+        只從沒被硬約束淘汰的配置裡挑（缺零件、超支 20% 以上、散熱壓不住的 fitness ≤ -5）；
+        全部都被淘汰時（例如預算低於最便宜的組合）才退回全部。
+        先挑顯卡不同的（維持原本「前五名盡量換不同顯卡」的用意），不夠再用顯卡相同但其他零件不同的補。"""
+        ranked = sorted(self._hall.items(), key=lambda kv: (-kv[1][0], kv[0]))
+        feasible = [kv for kv in ranked if kv[1][0] > HARD_FAIL]
+        ranked = feasible or ranked
+        picked, seen_gpu = [], set()
+        for sig, (fit, b) in ranked:
+            gpu = b.parts.get("GPU")
+            key = gpu.specs.get("ptt_model", gpu.name) if gpu else ""
+            if key not in seen_gpu and len(picked) < n:
+                seen_gpu.add(key)
+                picked.append((fit, sig, b))
+        used = {sig for _, sig, _ in picked}
+        for sig, (fit, b) in ranked:
+            if len(picked) >= n:
+                break
+            if sig not in used:
+                picked.append((fit, sig, b))
+                used.add(sig)
+        # 依 fitness 排名次：顯卡不同只影響「挑哪幾組」，不影響順序（第 1 名永遠是最高分）
+        picked.sort(key=lambda x: (-x[0], x[1]))
+        return [b for _, _, b in picked]
+
     def run(self, verbose: bool = True) -> list[Build]:
         pop = self._init_population()
+        # 名人堂：整個演化過程出現過的好配置。族群收斂後最後一代常常只剩一兩種配置，
+        # 原本直接從最後一代挑前五名，會挑到同一組配置重複 5 次（80,000 遊戲實測 5 個全一樣）
+        self._hall: dict[tuple, tuple[float, Build]] = {}
         for gen in range(self.generations):
             fits = [self.fitness(b) for b in pop]
             idx  = sorted(range(len(pop)), key=lambda i: fits[i], reverse=True)
+            self._remember(pop, fits, idx)
             self.history_best.append(fits[idx[0]])
             self.history_avg.append(float(np.mean(fits)))
             if verbose and (gen % 20 == 0 or gen == self.generations - 1):
@@ -664,17 +719,5 @@ class GARecommender:
 
         fits = [self.fitness(b) for b in pop]
         idx  = sorted(range(len(pop)), key=lambda i: fits[i], reverse=True)
-        top5 = []
-        seen_gpu = set()
-        for i in idx:
-            b = pop[i]
-            gpu = b.parts.get("GPU")
-            key = gpu.specs.get("ptt_model", gpu.name) if gpu else ""
-            if key not in seen_gpu:
-                seen_gpu.add(key)
-                top5.append(b)
-            elif len(top5) < 5:
-                top5.append(b)
-            if len(top5) >= 5:
-                break
-        return top5
+        self._remember(pop, fits, idx)
+        return self._pick_top(5)

@@ -28,6 +28,7 @@ from data.sentiment import SentimentScorer
 from advisor.compatibility import CompatibilityChecker
 from advisor.upgrade_advisor import UpgradeAdvisor
 from core.ga_engine import GARecommender
+from core.feasibility import min_budget
 
 _HERE = Path(__file__).parent
 
@@ -39,6 +40,7 @@ class _Resources:
     scorer: SentimentScorer
     checker: CompatibilityChecker
     advisor: UpgradeAdvisor
+    min_budget: int
 
 res = _Resources()
 
@@ -49,6 +51,8 @@ async def lifespan(app: FastAPI):
     res.scorer   = SentimentScorer(MATCHED_FILES, DB_PATH)
     res.checker  = CompatibilityChecker()
     res.advisor  = UpgradeAdvisor(res.catalog, res.scorer, res.checker)
+    # 預算下限：GA 組得出不超支配置的最低預算（低於它 GA 只能回傳超支的配置）
+    res.min_budget = min_budget(res.catalog)[0] or 10000
     yield
 
 
@@ -96,7 +100,8 @@ class UsageWeights(BaseModel):
 
 
 class RecommendRequest(BaseModel):
-    budget: int = Field(..., ge=10000, description="Total budget in NT$")
+    # 下限不在這裡寫死：由 recommend() 依目錄算出的 res.min_budget 檢查，錯誤訊息才會一致
+    budget: int = Field(..., gt=0, description="Total budget in NT$")
     cooling_prefer: str = Field("auto", description="auto | 風冷（水冷目前不提供，見 config.ENABLE_WATER_COOLING）")
     usage: str = Field("工作", description="工作 | 遊戲 | 一般文書")
     weights: Optional[UsageWeights] = Field(
@@ -134,6 +139,11 @@ def recommend(request: Request, req: RecommendRequest):
     valid_cooling = {"auto"} | {c for c in ("風冷", "水冷") if res.catalog.get(c)}
     if req.cooling_prefer not in valid_cooling:
         raise HTTPException(status_code=400, detail=f"不支援的散熱偏好：{req.cooling_prefer}")
+    if req.budget < res.min_budget:
+        raise HTTPException(
+            status_code=400,
+            detail=f"預算至少需要 NT${res.min_budget:,}（目前組得出相容配置的最低預算），請提高預算",
+        )
     ga = GARecommender(
         catalog=res.catalog,
         scorer=res.scorer,
