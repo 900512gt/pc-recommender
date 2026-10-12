@@ -135,11 +135,11 @@ class CompatibilityChecker:
         if cpu and cooler:
             # 用「實際功耗」對比「推斷壓制力」，兩者都不靠不可靠的標稱值
             from data.cpu_power import get_actual_power
-            from data.cooler_capacity import estimate_cooler_capacity
+            from data.cooler_capacity import get_cooler_capacity
             try:
                 nominal_tdp = float(cpu.specs.get("tdp", 0) or 0)
                 cpu_power   = get_actual_power(cpu.name, fallback_tdp=nominal_tdp or 65)
-                cooler_cap  = estimate_cooler_capacity(cooler.name, cooler.specs)
+                cooler_cap  = get_cooler_capacity(cooler.name, cooler.specs)
 
                 if cpu_power > cooler_cap:
                     # 壓不住：差距越大罰越重

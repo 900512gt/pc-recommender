@@ -399,10 +399,10 @@ class GARecommender:
         cooler_part = build.parts.get("風冷") or build.parts.get("水冷")
         if cpu_part and cooler_part:
             from data.cpu_power import get_actual_power
-            from data.cooler_capacity import estimate_cooler_capacity
+            from data.cooler_capacity import get_cooler_capacity
             nominal = float(cpu_part.specs.get("tdp", 0) or 0)
             cpu_pwr = get_actual_power(cpu_part.name, fallback_tdp=nominal or 65)
-            cool_cap = estimate_cooler_capacity(cooler_part.name, cooler_part.specs)
+            cool_cap = get_cooler_capacity(cooler_part.name, cooler_part.specs)
             if cpu_pwr > cool_cap:
                 # 壓不住：硬約束淘汰，差距越大排越後
                 return -5.0 - (cpu_pwr - cool_cap) / 100
