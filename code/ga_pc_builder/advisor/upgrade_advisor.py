@@ -107,6 +107,7 @@ class UpgradeAdvisor:
         budget: int,
         remaining_budget: int,
         usage: str = "遊戲",
+        allow_16pin_adapter: bool = False,
     ) -> list[dict]:
         """分成幾個加價級距回傳升級方案，讓使用者看得到「多花一點能換到什麼」。
 
@@ -117,7 +118,8 @@ class UpgradeAdvisor:
         for ratio in BUDGET_TIERS:
             extra = int(budget * ratio)
             available = remaining_budget + extra
-            upgrades = self.recommend_upgrades(build, available, usage)
+            upgrades = self.recommend_upgrades(build, available, usage,
+                                               allow_16pin_adapter=allow_16pin_adapter)
             if not upgrades:
                 continue
             spent = sum(u["cost"] for u in upgrades)
@@ -136,6 +138,7 @@ class UpgradeAdvisor:
         build: Build,
         available: int,
         usage: str = "遊戲",
+        allow_16pin_adapter: bool = False,
     ) -> list[dict]:
         """每個類別挑一個最值得的升級，依用途優先順序回傳。
 
@@ -149,7 +152,8 @@ class UpgradeAdvisor:
             current = build.parts.get(category)
             if not current:
                 continue
-            option = self._best_upgrade(category, current, build, available - spent)
+            option = self._best_upgrade(category, current, build, available - spent,
+                                        allow_16pin_adapter=allow_16pin_adapter)
             if option is None:
                 continue
             recommendations.append({
@@ -171,6 +175,7 @@ class UpgradeAdvisor:
         current: Part,
         build: Build,
         affordable: int,
+        allow_16pin_adapter: bool = False,
     ) -> UpgradeOption | None:
         axis = UPGRADE_AXIS.get(category)
         if not axis or affordable <= 0:
@@ -207,7 +212,7 @@ class UpgradeAdvisor:
             if primary != "benchmark" and sentiment_delta < 0:
                 continue
 
-            if not self._compatible(category, candidate, build):
+            if not self._compatible(category, candidate, build, allow_16pin_adapter):
                 continue
 
             gain = None
@@ -226,7 +231,8 @@ class UpgradeAdvisor:
             )
         return best
 
-    def _compatible(self, category: str, candidate: Part, build: Build) -> bool:
+    def _compatible(self, category: str, candidate: Part, build: Build,
+                    allow_16pin_adapter: bool = False) -> bool:
         """把零件換進去重算整份配置的相容性，只要沒有比現在更糟就放行。
 
         用 CompatibilityChecker 而不是自己寫一套簡化版：它會連電源瓦數、機殼長度、
@@ -238,8 +244,8 @@ class UpgradeAdvisor:
             return True
         candidate_build = build.copy()
         candidate_build.parts[category] = candidate
-        before, _ = self.checker.check(build)
-        after, _ = self.checker.check(candidate_build)
+        before, _ = self.checker.check(build, allow_16pin_adapter=allow_16pin_adapter)
+        after, _ = self.checker.check(candidate_build, allow_16pin_adapter=allow_16pin_adapter)
         if after > before:
             return False
         return self._psu_still_covers(build, candidate_build)

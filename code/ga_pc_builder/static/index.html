@@ -432,6 +432,11 @@
         </div>
 
         <div class="form-group">
+          <label><input type="checkbox" id="allow-adapter"> 接受 16-pin 顯卡使用轉接線</label>
+          <span class="form-hint">不勾選時只推薦有原生 16-pin 接頭的電源（轉接線曾有燒熔案例，廠商建議用 ATX 3.x 電源）</span>
+        </div>
+
+        <div class="form-group">
           <label for="usage">用途</label>
           <select id="usage">
             <option value="工作" selected>工作</option>
@@ -550,6 +555,7 @@
 
     const cooling = document.getElementById('cooling').value;
     const usage   = document.getElementById('usage').value;
+    const allow_16pin_adapter = document.getElementById('allow-adapter').checked;
 
     setLoading(true);
     resultsEl.classList.remove('visible');
@@ -558,7 +564,7 @@
       const resp = await fetch(API, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ budget, cooling_prefer: cooling, usage }),
+        body: JSON.stringify({ budget, cooling_prefer: cooling, usage, allow_16pin_adapter }),
       });
 
       if (!resp.ok) {
@@ -613,7 +619,10 @@
     if (compat.ok) {
       badgeEl.innerHTML =
         `<span class="compat-badge compat-ok">✓&nbsp; 無相容性問題</span>`;
-      issuesEl.innerHTML = '';
+      // 允許轉接線時，「需使用轉接線」會以不扣分的提醒出現
+      issuesEl.innerHTML = compat.issues
+        .map(i => `<div class="compat-issue">• ${esc(i)}</div>`)
+        .join('');
     } else {
       badgeEl.innerHTML =
         `<span class="compat-badge compat-warn">⚠&nbsp; ` +

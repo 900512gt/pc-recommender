@@ -13,16 +13,21 @@ from advisor.upgrade_advisor import UpgradeAdvisor
 
 
 def print_build(build: Build, scorer: SentimentScorer,
-                checker: CompatibilityChecker, rank: int = 1):
+                checker: CompatibilityChecker, rank: int = 1,
+                allow_16pin_adapter: bool = False):
     """顯示配置詳情"""
-    penalty, issues = checker.check(build)
+    penalty, issues = checker.check(build, allow_16pin_adapter=allow_16pin_adapter)
     print(f"\n{'='*60}")
     print(f"  第 {rank} 名推薦配置  |  總價：NT$ {build.total_price:,}")
     print(f"{'='*60}")
     for cat, part in sorted(build.parts.items()):
         sent = scorer.get(cat, part.short_name)
         print(f"  [{cat:5s}] {part.price:>6,}元  情感:{sent:.2f}  {part.name[:50]}")
-    if issues:
+    if issues and penalty == 0:
+        print(f"\n  ℹ️  提醒：")
+        for i in issues:
+            print(f"     • {i}")
+    elif issues:
         print(f"\n  ⚠️  相容性問題（懲罰 {penalty:.2f}）：")
         for i in issues:
             print(f"     • {i}")
@@ -34,9 +39,11 @@ def print_upgrade_recommendations(advisor: UpgradeAdvisor,
                                  build: Build,
                                  budget: int,
                                  remaining: int,
-                                 usage: str = "遊戲"):
+                                 usage: str = "遊戲",
+                                 allow_16pin_adapter: bool = False):
     """顯示升級建議，依加價幅度分級"""
-    tiers = advisor.recommend_tiers(build, budget, remaining, usage)
+    tiers = advisor.recommend_tiers(build, budget, remaining, usage,
+                                    allow_16pin_adapter=allow_16pin_adapter)
     if not tiers:
         print(f"\n  目前配置已是此預算最佳分配，加價也換不到更好的零件")
         return
@@ -67,10 +74,11 @@ def print_upgrade_recommendations(advisor: UpgradeAdvisor,
 
 def export_results(builds: list[Build], scorer: SentimentScorer,
                    checker: CompatibilityChecker,
-                   output_path: str = "ga_results.xlsx"):
+                   output_path: str = "ga_results.xlsx",
+                   allow_16pin_adapter: bool = False):
     rows = []
     for rank, build in enumerate(builds, 1):
-        penalty, issues = checker.check(build)
+        penalty, issues = checker.check(build, allow_16pin_adapter=allow_16pin_adapter)
         row = {
             "排名": rank,
             "總價(NT$)": build.total_price,
@@ -142,6 +150,20 @@ def get_user_input(min_budget: int = 10000):
         else:
             print(f"請輸入 {valid.replace('/', '、')}")
 
+    # 16-pin 轉接線
+    print("\n新款顯卡用 16-pin 供電。電源沒有原生 16-pin 接頭時，可以用顯卡附的轉接線，")
+    print("但轉接線曾有燒熔的案例，廠商建議用有原生接頭的 ATX 3.x 電源。")
+    while True:
+        choice = input("接受使用轉接線嗎？（y/n，預設 n）：").strip().lower()
+        if choice in ("", "n", "no"):
+            allow_16pin_adapter = False
+            break
+        elif choice in ("y", "yes"):
+            allow_16pin_adapter = True
+            break
+        else:
+            print("請輸入 y 或 n")
+
     # 預算策略
     print("\n預算策略：")
     print("1. 抓滿預算（在預算內配最強的配置）")
@@ -174,7 +196,7 @@ def get_user_input(min_budget: int = 10000):
         else:
             print("請輸入 1 或 2")
 
-    return budget, usage, cooling_prefer, reserve
+    return budget, usage, cooling_prefer, reserve, allow_16pin_adapter
 
 
 
@@ -192,7 +214,7 @@ def main():
 
     # 使用者輸入
     min_budget = compute_min_budget(catalog)[0] or 10000
-    budget, usage, cooling_prefer, reserve = get_user_input(min_budget)
+    budget, usage, cooling_prefer, reserve, allow_16pin_adapter = get_user_input(min_budget)
     psu_tier = "standard"
 
     # 留有餘裕：GA 用「預算 - 保留額」配主機，剩餘留給升級建議
@@ -219,6 +241,7 @@ def main():
         # 依預算自動決定（≥60000 用 0.15，否則維持 0.30）。依據見該方法註解。
         cooling_prefer=cooling_prefer,
         psu_tier=psu_tier,
+        allow_16pin_adapter=allow_16pin_adapter,
     )
 
     print("\n[GA] 開始演化...")
@@ -226,7 +249,7 @@ def main():
 
     print("\n\n【推薦結果 Top 5】")
     for i, build in enumerate(top5, 1):
-        print_build(build, scorer, checker, rank=i)
+        print_build(build, scorer, checker, rank=i, allow_16pin_adapter=allow_16pin_adapter)
 
     # 預算分析與升級建議
     best = top5[0]
@@ -242,9 +265,10 @@ def main():
         print(f"  配置總價：NT${best.total_price:,}  剩餘預算：NT${remaining:,}")
 
     # 使用新的升級建議系統（用真正的剩餘空間）
-    print_upgrade_recommendations(advisor, best, budget, remaining, usage)
+    print_upgrade_recommendations(advisor, best, budget, remaining, usage,
+                                  allow_16pin_adapter=allow_16pin_adapter)
 
-    export_results(top5, scorer, checker, "ga_results.xlsx")
+    export_results(top5, scorer, checker, "ga_results.xlsx", allow_16pin_adapter=allow_16pin_adapter)
     plot_fitness(ga)
     plot_budget_breakdown(top5[0])
 

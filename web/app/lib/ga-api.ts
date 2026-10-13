@@ -19,6 +19,8 @@ export interface RecommendRequest {
   budget: number;
   usage: Usage;
   cooling_prefer: CoolingPreference;
+  /** 16-pin 顯卡能不能用轉接線接在沒有原生 16-pin 的電源上。不送等於 false。 */
+  allow_16pin_adapter?: boolean;
   /**
    * 使用者沒調整過就不要送。只有「沒收到 weights」後端才會完整沿用該用途的預設比重；
    * 送 50/50/50 會被換算成三者等重，把遊戲偏重效能、工作偏重 CPU 這類用途差異抹掉。

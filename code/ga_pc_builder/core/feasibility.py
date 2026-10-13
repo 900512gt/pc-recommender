@@ -11,15 +11,18 @@ API 原本接受最低 10,000 元的預算，但目錄裡最便宜的相容組�
   - CPU-主機板腳位相同、記憶體世代符合主機板、散熱器支援 CPU 腳位、散熱器壓制力 ≥ CPU 實際功耗
     （以上對應 GARecommender.fitness 的硬約束與修補）
   - 機殼放得下主機板板型、顯卡長度、風冷高度（相容性檢查不會有任何提示）
+  - 電源瓦數夠（policies/psu_policy 不判定為供電不足）；顯卡要 16-pin 時電源要有原生接頭
+    （下限以「不接受轉接線」這個預設值計算）
   - 記憶體要是 GA 選得到的：GA 只用 pick_ram 挑記憶體，預算買得起 16GB 就不會選 8GB，
     所以不能直接拿最便宜的記憶體算（那樣算出來的下限 GA 自己組不出來）
 """
-from advisor.compatibility import form_factor_fits
+from advisor.compatibility import form_factor_fits, needs_16pin, has_native_16pin
+from policies.psu_policy import required_watt
 from data.cooler_capacity import get_cooler_capacity
 from data.cpu_power import get_actual_power
 from policies.ram_policy import ram_feasible
 
-_SIMPLE_CATS = ["GPU", "SSD", "電源"]
+_SIMPLE_CATS = ["GPU", "SSD"]          # 跟其他零件沒有硬性條件，取最便宜的（電源要看 CPU+顯卡的需求瓦數，另外挑）
 _COOLING_CATS = ["風冷", "水冷"]
 
 
@@ -107,8 +110,20 @@ def cheapest_build(catalog, budget: int | None = None):
             ram_cache[mem] = _cheapest(_reachable_ram(pool, budget) if budget else pool)
         return ram_cache[mem]
 
+    psus = sorted(catalog.get("電源"), key=lambda p: p.price)
+
+    def cheapest_psu(cpu):
+        # 跟 psu_score 一致：瓦數 < 需求 × 0.95 算供電不足
+        need = required_watt(cpu, gpu) * 0.95
+        return next((p for p in psus
+                     if _num(p, "wattage") >= need
+                     and (not needs_16pin(gpu) or has_native_16pin(p))), None)
+
     best_price, best = None, None
     for cpu in catalog.get("CPU"):
+        psu = cheapest_psu(cpu)
+        if psu is None:
+            continue
         sock = str(cpu.specs.get("socket", "")).strip()
         power = get_actual_power(cpu.name, fallback_tdp=float(cpu.specs.get("tdp") or 65))
         ok_coolers = [c for c in coolers
@@ -129,7 +144,8 @@ def cheapest_build(catalog, budget: int | None = None):
                     combo = (cooler.price + case.price, cooler, case)
             if combo is None:
                 continue
-            parts = {"CPU": cpu, "主機板": mb, "記憶體": ram, "機殼": combo[2], combo[1].category: combo[1], **simple}
+            parts = {"CPU": cpu, "主機板": mb, "記憶體": ram, "機殼": combo[2], combo[1].category: combo[1],
+                     "電源": psu, **simple}
             price = sum(p.price for p in parts.values())
             if best_price is None or price < best_price:
                 best_price, best = price, parts

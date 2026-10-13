@@ -11,7 +11,7 @@ from data.sentiment import SentimentScorer, PREF_SHARE
 from policies.ram_policy import pick_ram, ram_score
 from policies.psu_policy import psu_score
 from policies.ssd_policy import ssd_score
-from advisor.compatibility import CompatibilityChecker, form_factor_fits
+from advisor.compatibility import CompatibilityChecker, form_factor_fits, needs_16pin, has_native_16pin
 
 
 
@@ -77,6 +77,7 @@ class GARecommender:
         pref_term_share: float = PREF_TERM_SHARE,
         pref_share: float = PREF_SHARE,
         repair: bool = True,
+        allow_16pin_adapter: bool = False,
     ):
         assert usage in USAGE_WEIGHTS, f"usage 必須是 {list(USAGE_WEIGHTS.keys())}"
         self.catalog     = catalog
@@ -127,6 +128,9 @@ class GARecommender:
         # 散熱器剛好一個、CPU-主機板-記憶體-散熱器腳位與世代相容」。
         # 相容性懲罰仍保留在 fitness 裡當後備（repair=False 時就回到原本只靠懲罰的行為）。
         self.repair = repair
+        # 16-pin 顯卡能不能用轉接線接在沒有原生 16-pin 的電源上（使用者決定）。
+        # 不允許時修補會把電源換成有原生接頭的；允許時只在相容性檢查裡提示。
+        self.allow_16pin_adapter = allow_16pin_adapter
         self._index_compat_pools()
         self.history_best: list[float] = []
         # 名人堂：run() 時記錄整個演化過程的好配置，前五名從這裡挑（見 _pick_top）
@@ -295,6 +299,21 @@ class GARecommender:
                 if cands:
                     b.parts[cat] = random.choice(cands)
 
+        # 3e. 顯卡 16-pin ↔ 電源原生接頭（使用者不接受轉接線時）：換成有原生接頭、
+        #     瓦數不低於原本的電源裡最小的那一級，維持原本的供電餘裕、不多花錢
+        psu = b.parts.get("電源")
+        if (not self.allow_16pin_adapter and needs_16pin(b.parts.get("GPU"))
+                and psu and not has_native_16pin(psu)):
+            native = [p for p in (self.catalog.get("電源") or []) if has_native_16pin(p)]
+            cur_w = self._watt(psu)
+            enough = [p for p in native if self._watt(p) >= cur_w]
+            if enough:
+                lowest = min(self._watt(p) for p in enough)
+                b.parts["電源"] = random.choice([p for p in enough if self._watt(p) == lowest])
+            elif native:
+                highest = max(self._watt(p) for p in native)
+                b.parts["電源"] = random.choice([p for p in native if self._watt(p) == highest])
+
         # 3d. 機殼 ↔ 主機板板型（主機板已經跟著 CPU 定了，所以換機殼）
         mb, case = b.parts.get("主機板"), b.parts.get("機殼")
         if mb and case and not form_factor_fits(mb, case):
@@ -304,6 +323,13 @@ class GARecommender:
             if pick_from:
                 b.parts["機殼"] = random.choice(pick_from)
         return b
+
+    @staticmethod
+    def _watt(psu) -> float:
+        try:
+            return float(psu.specs.get("wattage", 0) or 0)
+        except (TypeError, ValueError):
+            return 0.0
 
     @staticmethod
     def _case_fits_others(case, b: Build) -> bool:
@@ -415,7 +441,7 @@ class GARecommender:
         sent     = self._sentiment_score(build)
         cp       = self._cp_score(build)
         b_pen    = self._budget_penalty(build)
-        c_pen, _ = self.checker.check(build,self.psu_tier)
+        c_pen, _ = self.checker.check(build, self.psu_tier, self.allow_16pin_adapter)
 
         # 使用者有指定面向時，口碑的權重分一部分給「指定面向」這一項。
         # 舊做法是把指定的面向混進該零件的口碑平均，再跟其他類別平均，最好與最差的

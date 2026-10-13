@@ -61,6 +61,8 @@ export default function BuilderPage() {
   const [usage, setUsage] = useState<Usage>(INITIAL_USAGE);
   const [weights, setWeights] = useState<PreferenceWeights>(() => defaultSliders(INITIAL_USAGE));
   const [cooling, setCooling] = useState<CoolingPreference>("auto");
+  // 16-pin 顯卡能不能用轉接線接在沒有原生 16-pin 的電源上；預設不允許（後端只推薦有原生接頭的電源）
+  const [allowAdapter, setAllowAdapter] = useState(false);
   const [selectable, setSelectable] = useState<SelectableAspects[]>([]);
   const [aspectPrefs, setAspectPrefs] = useState<AspectPrefs>({});
   const [loading, setLoading] = useState(false);
@@ -94,6 +96,7 @@ export default function BuilderPage() {
         budget: parsedBudget,
         usage,
         cooling_prefer: cooling,
+        allow_16pin_adapter: allowAdapter,
         // 沒調整過（或三項全是 0）就不送，讓後端完整沿用該用途的預設比重
         ...(isCustomized(usage, weights) && total > 0 ? { weights } : {}),
         ...(Object.keys(aspectPrefs).length > 0 ? { aspect_prefs: aspectPrefs } : {}),
@@ -164,6 +167,21 @@ export default function BuilderPage() {
               <option value="auto">自動</option>
               <option value="風冷">風冷</option>
             </select>
+          </label>
+
+          <label className="flex items-start gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={allowAdapter}
+              onChange={(e) => setAllowAdapter(e.target.checked)}
+              className="mt-1"
+            />
+            <span>
+              接受 16-pin 顯卡使用轉接線
+              <span className="block text-text-muted">
+                不勾選時只推薦有原生 16-pin 接頭的電源（轉接線曾有燒熔案例，廠商建議用 ATX 3.x 電源）
+              </span>
+            </span>
           </label>
 
           <button
@@ -384,7 +402,17 @@ function ResultView({ result }: { result: RecommendResponse }) {
         }`}
       >
         {result.compatibility.ok ? (
-          "相容性檢查通過"
+          <div>
+            <p>相容性檢查通過</p>
+            {/* 允許轉接線時，「需使用轉接線」會以不扣分的提醒出現 */}
+            {result.compatibility.issues.length > 0 && (
+              <ul className="mt-1 list-disc pl-5">
+                {result.compatibility.issues.map((issue, i) => (
+                  <li key={i}>{issue}</li>
+                ))}
+              </ul>
+            )}
+          </div>
         ) : (
           <div>
             <p className="font-medium">相容性檢查發現問題</p>

@@ -78,9 +78,22 @@ def form_factor_fits(mb, case) -> bool:
     return _FORM_RANK[form] <= _FORM_RANK[max_form]
 
 
+def needs_16pin(gpu) -> bool:
+    """顯卡用 16-pin（12VHPWR / 12V-2x6）供電。資料庫 power_conn 是 16-pin 或 1*16pin"""
+    return bool(gpu) and "16" in str(gpu.specs.get("power_conn", ""))
+
+
+def has_native_16pin(psu) -> bool:
+    """電源有原生 16-pin 接頭（資料庫 pcie5 = "是"，即 ATX 3.x / PCIe 5.x 電源）"""
+    return bool(psu) and str(psu.specs.get("pcie5", "")).strip() == "是"
+
+
 class CompatibilityChecker:
 
-    def check(self, build,psu_tier:str = "standard") -> tuple[float, list[str]]:
+    def check(self, build, psu_tier: str = "standard",
+              allow_16pin_adapter: bool = False) -> tuple[float, list[str]]:
+        """allow_16pin_adapter：使用者是否接受 16-pin 顯卡用轉接線接在沒有原生 16-pin 的電源上。
+        接受時只提示、不扣分；不接受時當成不相容扣分。"""
         penalty = 0.0
         issues = []
 
@@ -190,6 +203,17 @@ class CompatibilityChecker:
                     issues.append(f"水冷排 {rad_size}mm > 機殼限制 {case_max}mm")
             except (ValueError, TypeError):
                 pass
+
+        # 顯卡 16-pin ↔ 電源原生接頭（審查 #19）
+        # 顯卡通常附 8-pin 轉 16-pin 轉接線，技術上接得起來；但轉接線曾有燒熔案例，
+        # 廠商建議用原生 16-pin 的 ATX 3.x 電源。由使用者決定接不接受轉接線。
+        psu_part = build.parts.get("電源")
+        if needs_16pin(gpu) and psu_part and not has_native_16pin(psu_part):
+            if allow_16pin_adapter:
+                issues.append("顯卡用 16-pin 供電，這顆電源沒有原生接頭，需使用顯卡附的轉接線（已允許）")
+            else:
+                penalty += 1.0
+                issues.append("顯卡需要 16-pin（12V-2x6）供電，電源沒有原生接頭")
 
         # 電源評分（夠用/過度配置/用料）已統一由 policies/psu_policy.py 負責，
         # 此處不再重複檢查，避免同一問題被兩個模組各扣一次分。

@@ -107,6 +107,9 @@ class RecommendRequest(BaseModel):
     weights: Optional[UsageWeights] = Field(
         None, description="效能/口碑/CP值滑桿，留空則使用該用途的預設權重"
     )
+    allow_16pin_adapter: bool = Field(
+        False, description="16-pin 顯卡能不能用轉接線接在沒有原生 16-pin 的電源上；不允許時只推薦有原生接頭的電源"
+    )
     aspect_prefs: Optional[dict[str, list[str]]] = Field(
         None, description='使用者在意的口碑面向，例如 {"GPU": ["穩定"]}；資料不夠的面向會被忽略'
     )
@@ -160,6 +163,7 @@ def recommend(request: Request, req: RecommendRequest):
         psu_tier="standard",
         custom_weights=req.weights.dict() if req.weights else None,
         aspect_prefs=req.aspect_prefs,
+        allow_16pin_adapter=req.allow_16pin_adapter,
     )
     # 實際套用到 fitness 的權重（滑桿換算後的結果），給前端／本機測試頁顯示用，
     # 方便肉眼確認滑桿真的有正確換算成 fitness 權重，不是只是介面上動一動。
@@ -205,7 +209,7 @@ def recommend(request: Request, req: RecommendRequest):
     ]
 
     # Compatibility
-    penalty, issues = res.checker.check(best)
+    penalty, issues = res.checker.check(best, allow_16pin_adapter=req.allow_16pin_adapter)
 
     # Upgrade recommendations，依加價幅度分級
     def _serialize(r: dict) -> dict:
@@ -232,7 +236,8 @@ def recommend(request: Request, req: RecommendRequest):
             "new_total_price": t["new_total_price"],
             "upgrades": [_serialize(r) for r in t["upgrades"]],
         }
-        for t in res.advisor.recommend_tiers(best, req.budget, remaining, req.usage)
+        for t in res.advisor.recommend_tiers(best, req.budget, remaining, req.usage,
+                                             allow_16pin_adapter=req.allow_16pin_adapter)
     ]
 
     return {
@@ -241,7 +246,8 @@ def recommend(request: Request, req: RecommendRequest):
         "budget": req.budget,
         "remaining": remaining,
         "compatibility": {
-            "ok": len(issues) == 0,
+            # 以扣分判斷：允許轉接線時「需使用轉接線」只是提示（不扣分），不算不相容
+            "ok": penalty == 0,
             "penalty": round(penalty, 3),
             "issues": issues,
         },

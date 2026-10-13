@@ -15,28 +15,40 @@
 """
 
 
+def _gpu_watt_from_price(price: float) -> float:
+    """沒有 tgp_watts 時的備援：依價格推估顯卡功耗（舊做法）"""
+    if price > 40000:   return 500
+    elif price > 28000: return 350
+    elif price > 18000: return 250
+    elif price > 12000: return 200
+    elif price > 8000:  return 180
+    elif price > 5000:  return 150
+    elif price > 4000:  return 120
+    return 90
+
+
 def _estimate_watt(cpu, gpu) -> float:
-    """估算系統所需電供瓦數。"""
-    cpu_tdp    = float(cpu.specs.get("tdp", 65) or 65) if cpu else 65
+    """估算系統所需電供瓦數。
+
+    修正（v3）：CPU 改用實際功耗（data/cpu_power，PL2 / PPT），不再用標稱 TDP 加個別型號特例；
+    顯卡改用資料庫的 tgp_watts（238 張全都有），沒有才退回依價格推估。
+    原本依價格推估，238 張裡有 107 張和實際 TGP 差超過 50W，例如 RTX5080 實際 360W 被當成 500W。
+    """
+    from data.cpu_power import get_actual_power
+    if cpu:
+        nominal = float(cpu.specs.get("tdp", 65) or 65)
+        cpu_tdp = get_actual_power(cpu.name, fallback_tdp=nominal)
+    else:
+        cpu_tdp = 65
     system_pwr = 80
 
-    # K/KF 系列實際功耗修正
-    if cpu:
-        cpu_name = cpu.name
-        if "265K" in cpu_name or "265KF" in cpu_name:
-            cpu_tdp = 180
-        elif "245K" in cpu_name or "245KF" in cpu_name:
-            cpu_tdp = 160
-
     if gpu:
-        if gpu.price > 40000:   gpu_tdp = 500
-        elif gpu.price > 28000: gpu_tdp = 350
-        elif gpu.price > 18000: gpu_tdp = 250
-        elif gpu.price > 12000: gpu_tdp = 200
-        elif gpu.price > 8000:  gpu_tdp = 180
-        elif gpu.price > 5000:  gpu_tdp = 150
-        elif gpu.price > 4000:  gpu_tdp = 120
-        else:                   gpu_tdp = 90
+        try:
+            gpu_tdp = float(gpu.specs.get("tgp_watts") or 0)
+        except (TypeError, ValueError):
+            gpu_tdp = 0.0
+        if gpu_tdp <= 0:
+            gpu_tdp = _gpu_watt_from_price(gpu.price)
     else:
         gpu_tdp = 150
 
