@@ -78,6 +78,8 @@ class GARecommender:
         pref_share: float = PREF_SHARE,
         repair: bool = True,
         allow_16pin_adapter: bool = False,
+        local_search_every: int = 30,
+        polish: bool = True,
     ):
         assert usage in USAGE_WEIGHTS, f"usage 必須是 {list(USAGE_WEIGHTS.keys())}"
         self.catalog     = catalog
@@ -131,7 +133,20 @@ class GARecommender:
         # 16-pin 顯卡能不能用轉接線接在沒有原生 16-pin 的電源上（使用者決定）。
         # 不允許時修補會把電源換成有原生接頭的；允許時只在相容性檢查裡提示。
         self.allow_16pin_adapter = allow_16pin_adapter
+        # 區域搜尋（memetic）：每隔 local_search_every 代，對當代最佳個體試所有
+        # 「CPU 型號 × 顯卡型號」組合，主機板、記憶體交給修補。0 表示不做。
+        # 遊戲用途的 CPU／顯卡平衡規則是門檻式扣分，低預算時會出現「CPU、主機板、顯卡
+        # 要三個同時換對才會更好」的解（40,000 遊戲 12 個種子有 10 個卡在 5600XT + RX7650GRE），
+        # 一般突變一次只換一兩個零件，換一半分數反而下降，降突變率也沒用。
+        # 每 30 代一次：12 個種子全部跳出，時間約多 30%；改成每 10 代結果相同但更慢。
+        self.local_search_every = local_search_every
+        # 演化結束後對最佳解做單一零件爬山：每個類別試目錄裡每一款，有進步就接受。
+        # 突變率 0.30 時族群不收斂，各種子停在只差散熱器、記憶體等小零件的配置；
+        # 爬山後同一預算各種子的結果一致（40,000、50,000 遊戲各 12 個種子實測）。
+        self.polish = polish
         self._index_compat_pools()
+        self._ls_cpu = self._model_reps("CPU")
+        self._ls_gpu = self._model_reps("GPU")
         self.history_best: list[float] = []
         # 名人堂：run() 時記錄整個演化過程的好配置，前五名從這裡挑（見 _pick_top）
         self._hall: dict[tuple, tuple[float, "Build"]] = {}
@@ -681,6 +696,58 @@ class GARecommender:
                 b.parts[new_cool] = random.choice(pool)
         return b
 
+    def _model_reps(self, cat: str) -> list:
+        """每個型號取最便宜的一款：區域搜尋以型號為單位，同型號的其他款交給突變與爬山"""
+        reps = {}
+        for p in self.catalog.get(cat) or []:
+            key = p.specs.get("ptt_model") or p.name
+            if key not in reps or p.price < reps[key].price:
+                reps[key] = p
+        return [reps[k] for k in sorted(reps)]
+
+    def _local_search(self, build: Build, tries: int = 3) -> Build | None:
+        """試所有「CPU 型號 × 顯卡型號」組合（主機板等由修補配上，修補有隨機性所以試 tries 次），
+        回傳比 build 更好的最佳組合；沒有更好的回傳 None"""
+        best_fit, best = self.fitness(build), None
+        for cpu in self._ls_cpu:
+            for gpu in self._ls_gpu:
+                for _ in range(tries):
+                    c = build.copy()
+                    c.parts["CPU"], c.parts["GPU"] = cpu, gpu
+                    if self.repair:
+                        c = self._repair(c)
+                    f = self.fitness(c)
+                    if f > best_fit + 1e-9:
+                        best_fit, best = f, c
+        return best
+
+    def _polish(self, build: Build) -> Build:
+        """單一零件爬山：每次試所有類別的每一款，取進步最多的換法，直到沒有任何換法更好"""
+        best_fit = self.fitness(build)
+        while True:
+            step = None
+            for cat in sorted(build.parts):
+                for part in self.catalog.get(cat) or []:
+                    c = build.copy()
+                    c.parts[cat] = part
+                    if self.repair:
+                        c = self._repair(c)
+                    f = self.fitness(c)
+                    if f > best_fit + 1e-9:
+                        best_fit, step = f, c
+            if step is None:
+                # 顯卡和電源常要一起換：換成需要 16-pin 或功耗不同的顯卡時，原本的電源不再合適
+                for gpu in self.catalog.get("GPU") or []:
+                    for psu in self.catalog.get("電源") or []:
+                        c = build.copy()
+                        c.parts["GPU"], c.parts["電源"] = gpu, psu
+                        f = self.fitness(c)
+                        if f > best_fit + 1e-9:
+                            best_fit, step = f, c
+            if step is None:
+                return build
+            build = step
+
     @staticmethod
     def _signature(build: Build) -> tuple:
         """配置的識別碼：各類別的商品名稱。名稱相同就是使用者眼中的同一台"""
@@ -727,6 +794,13 @@ class GARecommender:
         for gen in range(self.generations):
             fits = [self.fitness(b) for b in pop]
             idx  = sorted(range(len(pop)), key=lambda i: fits[i], reverse=True)
+            # 區域搜尋找到更好的組合時，取代族群裡最差的個體，讓它參與之後的交配
+            every = self.local_search_every
+            if every and gen % every == every - 1:
+                better = self._local_search(pop[idx[0]])
+                if better is not None:
+                    pop[idx[-1]], fits[idx[-1]] = better, self.fitness(better)
+                    idx = sorted(range(len(pop)), key=lambda i: fits[i], reverse=True)
             self._remember(pop, fits, idx)
             self.history_best.append(fits[idx[0]])
             self.history_avg.append(float(np.mean(fits)))
@@ -746,4 +820,10 @@ class GARecommender:
         fits = [self.fitness(b) for b in pop]
         idx  = sorted(range(len(pop)), key=lambda i: fits[i], reverse=True)
         self._remember(pop, fits, idx)
+        if self.polish and self._hall:
+            # 爬山的結果放進名人堂再挑前五名，它跟原本的第一名可能只差一個零件，兩者都可能入選
+            best_fit, best = max(self._hall.values(), key=lambda v: v[0])
+            if best_fit > HARD_FAIL:
+                polished = self._polish(best)
+                self._hall.setdefault(self._signature(polished), (self.fitness(polished), polished))
         return self._pick_top(5)
