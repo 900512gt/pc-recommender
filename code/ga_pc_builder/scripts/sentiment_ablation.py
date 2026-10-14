@@ -58,6 +58,8 @@ BASELINE = "有口碑"
 NO_SENT = "無口碑"
 # 記錄每次選到什麼型號的類別：整機口碑實際會看的三個類別
 WATCH = ["CPU", "GPU", "主機板"]
+# 有 PassMark 跑分的類別
+BENCH_CATS = ["CPU", "GPU"]
 
 _res = {}   # 每個 worker process 各自載入一份資料
 
@@ -95,14 +97,26 @@ def run_one(job: dict) -> dict:
         # 整機口碑一律用「各面向平均」算（不帶面向偏好），條件之間才能比
         "sentiment": round(float(np.mean([scorer.get(c, best.parts[c].short_name) for c in WATCH])), 4),
     }
+    # 逐個零件記下價格與口碑，CPU、顯卡再記 PassMark 跑分：整機效能分數把各零件混在一起，
+    # 又用價格代替沒有跑分的零件，顯卡降級、省下的錢拿去升級 CPU 時分數反而會上升，
+    # 看不出系統實際拿哪個零件去換
     for c in WATCH:
-        row[f"model_{c}"] = best.parts[c].specs.get("ptt_model") or best.parts[c].name
+        part = best.parts[c]
+        row[f"model_{c}"] = part.specs.get("ptt_model") or part.name
+        row[f"price_{c}"] = part.price
+        row[f"sent_{c}"] = round(scorer.get(c, part.short_name), 4)
+        if c in BENCH_CATS:
+            row[f"bench_{c}"] = float(part.specs.get("benchmark") or 0)
 
     # 選到的零件在每個受觀察面向的表現。norm 是 GA 實際看到的分數（類別內 0~1，
     # 評價不足時是類別平均的位置）；rank 只有評價夠的型號才有，其餘留空。
+    # others 是同一個零件其餘面向的平均，用來看為了指定的面向犧牲了哪些面向。
     for c, a in job["measure"]:
         name = best.parts[c].short_name
-        row[f"norm_{c}:{a}"] = round(scorer.get_aspects(c, name).get(a, 0.5), 4)
+        table = scorer.get_aspects(c, name)
+        row[f"norm_{c}:{a}"] = round(table.get(a, 0.5), 4)
+        rest = [v for k, v in table.items() if k != a]
+        row[f"others_{c}:{a}"] = round(float(np.mean(rest)), 4) if rest else ""
         evidence = scorer.aspect_evidence(c, name)
         hit = next((r for r in (evidence or {}).get("aspects", []) if r["aspect"] == a), None)
         row[f"rank_{c}:{a}"] = hit["rank"] if hit and hit["rank"] is not None else ""
@@ -148,13 +162,40 @@ def summarize(rows: list, budget: int, measure: list, seeds: int):
               f"{mean_rank(BASELINE) + ' → ' + mean_rank(cond):>20}"
               f"{perf_change:>+11.1%}{price_change:>+11.0f}")
 
+    # 逐個零件的代價：跑分變化是同種子成對的比值再平均；降級次數是 CPU 或顯卡跑分
+    # 比對照低的種子數；其他面向是指定的那個零件其餘面向的平均變化
+    print(f"\n  指定面向的代價 相對「{BASELINE}」（同種子成對）")
+    print(f"  {'面向':<12}{'GPU 跑分':>9}{'CPU 跑分':>9}{'降級次數':>8}{'該類別價差':>10}{'其他面向口碑':>12}")
+    for c, a in measure:
+        cond = f"指定 {c}:{a}"
+        if (cond, 0) not in by:
+            continue
+
+        def bench_change(cat):
+            pairs = [(b, p) for b, p in zip(col(BASELINE, f"bench_{cat}"), col(cond, f"bench_{cat}")) if b]
+            return np.mean([p / b - 1 for b, p in pairs]) if pairs else 0.0
+
+        downgraded = sum(any(by[(cond, s)][f"bench_{k}"] < by[(BASELINE, s)][f"bench_{k}"] for k in BENCH_CATS)
+                         for s in range(seeds))
+        part_price = np.mean(col(cond, f"price_{c}")) - np.mean(col(BASELINE, f"price_{c}"))
+        others = [p - b for b, p in zip(col(BASELINE, f"others_{c}:{a}"), col(cond, f"others_{c}:{a}"))
+                  if b != "" and p != ""]
+        print(f"  {c + ':' + a:<12}{bench_change('GPU'):>+10.1%}{bench_change('CPU'):>+10.1%}"
+              f"{f'{downgraded}/{seeds}':>9}{part_price:>+12.0f}"
+              f"{(np.mean(others) if others else 0.0):>+13.3f}")
+
     for c in WATCH:
-        print(f"\n  {c} 選到的型號（次數）")
+        print(f"\n  {c} 選到的型號（次數）" + ("　括號內為 PassMark 跑分" if c in BENCH_CATS else ""))
+        bench = {}
+        if c in BENCH_CATS:
+            bench = {by[k][f"model_{c}"]: by[k][f"bench_{c}"] for k in by}
         for cond in conditions:
-            # 指定面向的條件只列自己那個類別，其他類別跟面向無關
-            if cond.startswith("指定") and not cond.startswith(f"指定 {c}:"):
+            # 指定面向的條件只列自己那個類別；但 CPU、顯卡是跑分代價的來源，
+            # 指定其他類別的面向時也可能被連帶換掉，所以每個條件都列
+            if cond.startswith("指定") and not cond.startswith(f"指定 {c}:") and c not in BENCH_CATS:
                 continue
-            top = "、".join(f"{m} {n}" for m, n in Counter(col(cond, f"model_{c}")).most_common(5))
+            top = "、".join(f"{m}" + (f"（{bench[m]:,.0f}）" if m in bench else "") + f" {n}"
+                           for m, n in Counter(col(cond, f"model_{c}")).most_common(5))
             print(f"    {cond:<16}{top}")
 
 
