@@ -3,10 +3,11 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+// 「零件口碑」列表用的是整則評論的正負評標籤與舊的五大維度分數，與配置建置器的面向口碑
+// 不是同一套資料，先從導覽列拿掉；零件詳情頁仍可從配置建置器的「看原始評論」與聊天室進入。
 const LINKS = [
   { href: "/", label: "首頁" },
   { href: "/builder", label: "配置建置" },
-  { href: "/parts", label: "零件口碑" },
 ];
 
 export default function Nav() {

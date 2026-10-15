@@ -2,17 +2,12 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
-import { RadarChart, TimelineChart } from "../../components/charts";
+import { useParams, useRouter } from "next/navigation";
 import {
-  fetchAspects,
   fetchModelComments,
   fetchModelDetail,
-  fetchTimeline,
-  type ModelAspects,
   type ModelDetail,
   type SourceComment,
-  type Timeline,
 } from "../../lib/rag-api";
 
 const SOURCE_LABEL: Record<string, string> = { ptt: "PTT", bahamut: "巴哈" };
@@ -21,28 +16,23 @@ export default function ModelDetailPage() {
   const params = useParams<{ model: string }>();
   const model = decodeURIComponent(params.model);
 
-  // 四支端點的結果連同「這是哪個型號的資料」一起存。這樣 loading 可以從 state 推導
+  // 口碑走勢圖與面向雷達圖已拿掉：前者用整則評論的正負評標籤、後者是舊的 BERT 五大維度
+  // （含已移除的 CP值），與配置建置器的面向口碑不是同一套數字，放在一起會互相矛盾。
+  //
+  // 兩支端點的結果連同「這是哪個型號的資料」一起存。這樣 loading 可以從 state 推導
   // 而不必在 effect 裡同步 setLoading(true)（那會多觸發一輪重繪，eslint 也會擋），
   // 而且從 A 型號跳到 B 型號時，不會有一瞬間把 A 的資料掛在 B 的標題底下。
   const [loaded, setLoaded] = useState<{
     model: string;
     detail: ModelDetail | null;
-    timeline: Timeline | null;
-    aspects: ModelAspects | null;
     comments: SourceComment[];
   } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    // 四支端點互相獨立，同時發出去；走勢與面向資料不足時會回 null，該區塊就不顯示
-    Promise.all([
-      fetchModelDetail(model),
-      fetchTimeline(model),
-      fetchAspects(model),
-      fetchModelComments(model),
-    ]).then(([detail, timeline, aspects, comments]) => {
+    Promise.all([fetchModelDetail(model), fetchModelComments(model)]).then(([detail, comments]) => {
       if (cancelled) return;
-      setLoaded({ model, detail, timeline, aspects, comments });
+      setLoaded({ model, detail, comments });
     });
     return () => {
       cancelled = true;
@@ -51,8 +41,6 @@ export default function ModelDetailPage() {
 
   const ready = loaded?.model === model ? loaded : null;
   const detail = ready?.detail ?? null;
-  const timeline = ready?.timeline ?? null;
-  const aspects = ready?.aspects ?? null;
   const comments = ready?.comments ?? [];
 
   if (!ready) {
@@ -62,18 +50,16 @@ export default function ModelDetailPage() {
     return (
       <Shell>
         <p className="text-sm text-text-muted">找不到「{model}」這個型號。</p>
-        <Link href="/parts" className="mt-4 inline-block text-sm hover:underline">
-          ← 回到零件口碑列表
-        </Link>
+        <div className="mt-4">
+          <BackLink />
+        </div>
       </Shell>
     );
   }
 
   return (
     <Shell>
-      <Link href="/parts" className="text-sm text-text-muted hover:text-text">
-        ← 零件口碑
-      </Link>
+      <BackLink />
 
       <div className="mt-4 flex flex-wrap items-baseline gap-x-4 gap-y-1">
         <h1 className="text-4xl font-semibold tracking-tight">{detail.model}</h1>
@@ -111,33 +97,6 @@ export default function ModelDetailPage() {
         <section className="mt-10">
           <h2 className="text-lg font-semibold">論壇整體印象</h2>
           <p className="mt-3 max-w-3xl leading-relaxed text-text-muted">{detail.summary}</p>
-        </section>
-      )}
-
-      {(timeline || aspects) && (
-        <section className="mt-10 grid gap-8 lg:grid-cols-2">
-          {timeline && (
-            <div>
-              <h2 className="text-lg font-semibold">口碑走勢</h2>
-              <p className="mt-1 text-sm text-text-muted">
-                近 {timeline.months.length} 個月、{timeline.total.toLocaleString()} 則討論的正負評比例變化。
-              </p>
-              <div className="mt-4">
-                <TimelineChart data={timeline} />
-              </div>
-            </div>
-          )}
-          {aspects && (
-            <div>
-              <h2 className="text-lg font-semibold">面向評分</h2>
-              <p className="mt-1 text-sm text-text-muted">
-                由 fine-tune 過的中研院 BERT 分析全部評論得出，非 LLM 推估。
-              </p>
-              <div className="mt-4">
-                <RadarChart models={[aspects]} />
-              </div>
-            </div>
-          )}
         </section>
       )}
 
@@ -181,7 +140,7 @@ export default function ModelDetailPage() {
         <section className="mt-10">
           <h2 className="text-lg font-semibold">原始論壇評論</h2>
           <p className="mt-1 text-sm text-text-muted">
-            正負評交錯取樣的 {comments.length} 則，點擊可開啟論壇原文。
+            抽樣的 {comments.length} 則，點擊可開啟論壇原文。
           </p>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             {comments.map((c, i) => (
@@ -193,17 +152,6 @@ export default function ModelDetailPage() {
                 className="flex flex-col gap-1.5 rounded-lg border border-border p-3 transition-colors hover:border-border-strong"
               >
                 <div className="flex items-center gap-1.5 text-xs text-text-dim">
-                  <span
-                    className={`rounded-sm px-1 py-px ${
-                      c.label === "負評"
-                        ? "bg-accent text-accent-inverse"
-                        : c.label === "正評"
-                          ? "border border-border-strong text-text"
-                          : "text-text-dim"
-                    }`}
-                  >
-                    {c.label ?? "未分類"}
-                  </span>
                   <span>{SOURCE_LABEL[c.source] ?? c.source}</span>
                   {c.date && <span>{c.date}</span>}
                 </div>
@@ -217,6 +165,28 @@ export default function ModelDetailPage() {
   );
 }
 
+/**
+ * 回上一頁：詳情頁可能從配置建置器或聊天室進來，回到原本的頁面最自然；
+ * 直接開網址進來（沒有上一頁）時回配置建置器。配單結果存在 sessionStorage，回去還在。
+ */
+function BackLink() {
+  const router = useRouter();
+  return (
+    <Link
+      href="/builder"
+      onClick={(e) => {
+        if (window.history.length > 1) {
+          e.preventDefault();
+          router.back();
+        }
+      }}
+      className="text-sm text-text-muted hover:text-text"
+    >
+      ← 返回
+    </Link>
+  );
+}
+
 function Shell({ children }: { children: React.ReactNode }) {
   return <main className="mx-auto w-full max-w-360 flex-1 px-6 py-16">{children}</main>;
 }
@@ -225,7 +195,7 @@ function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div className="bg-bg px-4 py-3">
       <p className="text-xs text-text-muted">{label}</p>
-      <p className="mt-0.5 text-lg font-medium">{value}</p>
+      <p className="mt-0.5 font-mono text-lg font-medium tabular-nums">{value}</p>
     </div>
   );
 }
