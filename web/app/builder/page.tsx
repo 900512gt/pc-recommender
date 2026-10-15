@@ -109,120 +109,210 @@ export default function BuilderPage() {
     }
   }
 
+
   return (
-    <main className="mx-auto w-full max-w-360 flex-1 px-6 py-16">
-      <h1 className="text-4xl font-semibold tracking-tight">配置建置器</h1>
-      <p className="mt-2 text-text-muted">
+    <main className="mx-auto w-full max-w-360 flex-1 px-6 py-12">
+      <h1 className="text-3xl font-semibold tracking-tight">配置建置器</h1>
+      <p className="mt-2 text-sm text-text-muted">
         輸入預算與需求，透過遺傳演算法從零件資料庫中挑出最佳組合。
       </p>
 
       {/* 寬螢幕左邊放表單、右邊放結果，結果不必捲到表單底下才看得到；窄螢幕照原本上下排 */}
-      <div className="mt-10 grid items-start gap-10 lg:grid-cols-[24rem_minmax(0,1fr)]">
+      <div className="mt-8 grid items-start gap-8 lg:grid-cols-[22rem_minmax(0,1fr)]">
+        {/*
+          大螢幕把設定欄釘在畫面上，捲動右側長報表時仍能調整條件。設定欄比視窗高時在
+          面板內捲動，「生成配置」用 sticky 黏在面板底部，不會被捲出畫面。
+        */}
         <form
           onSubmit={onSubmit}
-          className="grid gap-6 rounded-lg border border-border p-6"
+          className="flex flex-col rounded-lg border border-border lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)] lg:overflow-y-auto"
         >
-          <label className="flex flex-col gap-2">
-            <span className="text-sm font-medium">預算（NT$）</span>
-            <input
-              type="number"
-              min={MIN_BUDGET}
-              step={1000}
-              value={budget}
-              onChange={(e) => setBudget(e.target.value)}
-              className="rounded-sm border border-border-strong px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent"
-            />
-          </label>
+          <div className="grid gap-6 p-5">
+            <div className="grid grid-cols-2 gap-3">
+              <label className="col-span-2 flex flex-col gap-1.5">
+                <FieldLabel>預算</FieldLabel>
+                <div className="flex items-center rounded-sm border border-border-strong focus-within:ring-2 focus-within:ring-accent">
+                  <span className="pl-3 font-mono text-sm text-text-dim">NT$</span>
+                  <input
+                    type="number"
+                    min={MIN_BUDGET}
+                    step={1000}
+                    value={budget}
+                    onChange={(e) => setBudget(e.target.value)}
+                    className="w-full min-w-0 bg-transparent px-2 py-2 font-mono text-sm tabular-nums outline-none"
+                  />
+                </div>
+              </label>
 
-          <label className="flex flex-col gap-2">
-            <span className="text-sm font-medium">用途</span>
-            <select
-              value={usage}
-              onChange={(e) => {
-                const next = e.target.value as Usage;
-                setUsage(next);
-                // 滑桿跟著跳到新用途的預設位置，不然會把上一個用途的比重帶過來
-                setWeights(defaultSliders(next));
-              }}
-              className="rounded-sm border border-border-strong px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent"
+              <label className="flex flex-col gap-1.5">
+                <FieldLabel>用途</FieldLabel>
+                <select
+                  value={usage}
+                  onChange={(e) => {
+                    const next = e.target.value as Usage;
+                    setUsage(next);
+                    // 滑桿跟著跳到新用途的預設位置，不然會把上一個用途的比重帶過來
+                    setWeights(defaultSliders(next));
+                  }}
+                  className="rounded-sm border border-border-strong bg-bg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent"
+                >
+                  <option value="工作">工作</option>
+                  <option value="遊戲">遊戲</option>
+                </select>
+              </label>
+
+              <label className="flex flex-col gap-1.5">
+                <FieldLabel>散熱偏好</FieldLabel>
+                <select
+                  value={cooling}
+                  onChange={(e) => setCooling(e.target.value as CoolingPreference)}
+                  className="rounded-sm border border-border-strong bg-bg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent"
+                >
+                  <option value="auto">自動</option>
+                  <option value="風冷">風冷</option>
+                </select>
+              </label>
+            </div>
+
+            <Divider />
+
+            <PreferenceSliders usage={usage} value={weights} onChange={setWeights} />
+
+            {selectable.length > 0 && (
+              <>
+                <Divider />
+                <AspectPicker options={selectable} value={aspectPrefs} onChange={setAspectPrefs} />
+              </>
+            )}
+
+            <Divider />
+
+            <div className="flex flex-col gap-2">
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={allowAdapter}
+                  onChange={(e) => setAllowAdapter(e.target.checked)}
+                  className="size-4 accent-current"
+                />
+                接受 16-pin 顯卡使用轉接線
+              </label>
+              <Note>
+                不勾選時只推薦有原生 16-pin 接頭的電源。轉接線曾有燒熔案例，廠商建議搭配 ATX 3.x 電源。
+              </Note>
+            </div>
+          </div>
+
+          <div className="sticky bottom-0 mt-auto border-t border-border bg-bg p-5">
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full rounded-sm bg-accent px-4 py-2 text-sm font-medium text-accent-inverse transition-opacity hover:opacity-90 disabled:opacity-50"
             >
-              <option value="工作">工作</option>
-              <option value="遊戲">遊戲</option>
-            </select>
-          </label>
-
-          <PreferenceSliders usage={usage} value={weights} onChange={setWeights} />
-
-          {selectable.length > 0 && (
-            <AspectPicker options={selectable} value={aspectPrefs} onChange={setAspectPrefs} />
-          )}
-
-          <label className="flex flex-col gap-2">
-            <span className="text-sm font-medium">散熱偏好</span>
-            <select
-              value={cooling}
-              onChange={(e) => setCooling(e.target.value as CoolingPreference)}
-              className="rounded-sm border border-border-strong px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent"
-            >
-              <option value="auto">自動</option>
-              <option value="風冷">風冷</option>
-            </select>
-          </label>
-
-          <label className="flex items-start gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={allowAdapter}
-              onChange={(e) => setAllowAdapter(e.target.checked)}
-              className="mt-1"
-            />
-            <span>
-              接受 16-pin 顯卡使用轉接線
-              <span className="block text-text-muted">
-                不勾選時只推薦有原生 16-pin 接頭的電源（轉接線曾有燒熔案例，廠商建議用 ATX 3.x 電源）
-              </span>
-            </span>
-          </label>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="rounded-sm bg-accent px-4 py-2 text-sm font-medium text-accent-inverse transition-opacity hover:opacity-90 disabled:opacity-50"
-          >
-            {loading ? "生成中…" : "生成配置"}
-          </button>
+              {loading ? "生成中…" : "生成配置"}
+            </button>
+          </div>
         </form>
 
         <div className="min-w-0">
           {error && (
-            <div className="rounded-sm border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700">
+            <div className="mb-6 rounded-sm border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700">
               {error}
             </div>
           )}
 
           {result && <ResultView result={result} />}
 
-          {!result && !error && (
-            <div className="rounded-lg border border-dashed border-border-strong px-6 py-16 text-center text-sm text-text-muted">
-              {loading
-                ? "正在搜尋最佳組合，大約需要 5~10 秒…"
-                : "設定好條件後按「生成配置」，推薦的零件、口碑依據與升級建議會顯示在這裡。"}
-            </div>
-          )}
+          {!result && !error && <EmptyState loading={loading} />}
         </div>
       </div>
     </main>
   );
 }
 
+// ── 共用的小元件 ─────────────────────────────────────────────────────────────
+
+const MONO = "font-mono tabular-nums";
+
+function FieldLabel({ children }: { children: React.ReactNode }) {
+  return <span className="text-xs font-medium text-text-muted">{children}</span>;
+}
+
+function Divider() {
+  return <hr className="border-border" />;
+}
+
+/** Vercel 風格的說明區塊：細邊框、極淺灰底，用來放補充說明，不跟主要控制項搶視線。 */
+function Note({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="rounded-sm border border-border bg-bg-alt px-3 py-2 text-xs leading-relaxed text-text-muted">
+      {children}
+    </p>
+  );
+}
+
+/** 等寬的小標籤：名次、加價、效能變化這類要能並排比較的數字。emphasis 用黑框加粗強調（設計系統不用彩色）。 */
+function MonoBadge({ children, emphasis = false }: { children: React.ReactNode; emphasis?: boolean }) {
+  return (
+    <span
+      className={`inline-flex items-center rounded-sm border px-1.5 py-0.5 text-xs whitespace-nowrap ${MONO} ${
+        emphasis ? "border-accent font-semibold text-text" : "border-border text-text-muted"
+      }`}
+    >
+      {children}
+    </span>
+  );
+}
+
+/** 0~1 分數的迷你橫條：底色淺灰、填色黑，用來快速掃出高分與低分的零件。 */
+function MiniBar({ value, width = "w-10" }: { value: number; width?: string }) {
+  const pct = Math.max(0, Math.min(1, value)) * 100;
+  return (
+    <span className={`inline-block h-1 ${width} overflow-hidden rounded-full bg-border`} aria-hidden>
+      <span className="block h-full bg-text" style={{ width: `${pct}%` }} />
+    </span>
+  );
+}
+
+/**
+ * 商品名稱降噪：原價屋的品名把型號和規格寫在一起，例如
+ * 「華碩 DUAL-RX9060XT-8G(3150MHz/21cm/雙風扇/註冊四年保)金屬背板」、
+ * 「致態 ZhiTai TiPlus7100s 1TB/Gen4/PCIe 4.0/讀7400/寫6900/TLC」。
+ * 把 ()、（）、【】、[] 裡的內容、結尾的「*最後優惠」這類促銷字樣，以及第一個「/」之後
+ * 用斜線分隔的規格拆出來，剩下的當主名稱。只影響顯示，原始字串不變；
+ * 拆完沒有主名稱時退回原字串。
+ */
+function splitPartName(name: string): { main: string; specs: string[] } {
+  const specs: string[] = [];
+  const stripped = name
+    .replace(/[(（【\[]([^)）】\]]*)[)）】\]]/g, (_, inner: string) => {
+      specs.push(...inner.split("/").map((s) => s.trim()).filter(Boolean));
+      return " ";
+    })
+    .replace(/\*([^*]+)$/, (_, promo: string) => {
+      specs.push(promo.trim());
+      return " ";
+    })
+    .replace(/\s+/g, " ")
+    .trim();
+  const [main, ...slashSpecs] = stripped.split("/").map((s) => s.trim());
+  const allSpecs = [...slashSpecs.filter(Boolean), ...specs];
+  return main ? { main, specs: allSpecs } : { main: name, specs: [] };
+}
+
+function money(n: number): string {
+  return `NT$${n.toLocaleString()}`;
+}
+
+// ── 左側設定欄 ───────────────────────────────────────────────────────────────
+
 /**
  * 效能／口碑／CP 值的偏好比重。右邊顯示的是三項之間的相對佔比而不是滑桿原始值，
- * 讓使用者看得出「拉到 100」不等於「100%」。
- *
- * 版面沿用表單其他欄位「標籤在上、控制項在下」的排法：每列上方左邊是名稱、右邊是
- * 佔比，下方是整條寬度的滑桿。這樣三條軌道等長、左右兩端對齊，手機上也不必把
- * 名稱、軌道、數字硬擠在同一行。佔比數字沿用結果區 Stat 的「數值用 semibold」。
+ * 讓使用者看得出「拉到 100」不等於「100%」。上方的分段條把三者佔比畫成一條，
+ * 用黑、深灰、中灰三階區分（設計系統沒有彩色，靠灰階層次分辨）。
  */
+const PREFERENCE_TONES = ["bg-text", "bg-text-muted", "bg-text-dim"] as const;
+
 function PreferenceSliders({
   usage,
   value,
@@ -237,7 +327,7 @@ function PreferenceSliders({
   const customized = isCustomized(usage, value);
 
   return (
-    <div role="group" aria-labelledby={`${id}-title`} className="flex flex-col gap-4">
+    <div role="group" aria-labelledby={`${id}-title`} className="flex flex-col gap-3">
       <div className="flex items-baseline justify-between gap-4">
         <span id={`${id}-title`} className="text-sm font-medium">
           偏好比重
@@ -248,30 +338,45 @@ function PreferenceSliders({
             onClick={() => onChange(defaultSliders(usage))}
             className="text-xs text-text-muted underline-offset-4 transition-colors hover:text-text hover:underline"
           >
-            恢復「{usage}」預設
+            恢復預設
           </button>
         ) : (
-          <span className="text-xs text-text-dim">「{usage}」的系統預設</span>
+          <span className="text-xs text-text-dim">「{usage}」系統預設</span>
         )}
       </div>
 
-      {PREFERENCES.map((p) => {
+      {/* 三項佔比的分段條；三項都是 0 時顯示一條空的底色 */}
+      <div className="flex h-1.5 gap-px overflow-hidden rounded-full bg-border" aria-hidden>
+        {total > 0 &&
+          PREFERENCES.map((p, i) =>
+            value[p.key] > 0 ? (
+              <span
+                key={p.key}
+                className={`h-full transition-[flex-grow] ${PREFERENCE_TONES[i]}`}
+                style={{ flexGrow: value[p.key] }}
+              />
+            ) : null,
+          )}
+      </div>
+
+      {PREFERENCES.map((p, i) => {
         const share = total > 0 ? Math.round((value[p.key] / total) * 100) : null;
         const inputId = `${id}-${p.key}`;
         return (
-          <div key={p.key} className="flex flex-col gap-1">
+          <div key={p.key} className="flex flex-col gap-0.5">
             <div className="flex items-baseline justify-between gap-4">
-              <label htmlFor={inputId} className="text-sm text-text-muted">
+              <label htmlFor={inputId} className="flex items-center gap-2 text-sm text-text-muted">
+                <span className={`size-2 rounded-[2px] ${PREFERENCE_TONES[i]}`} aria-hidden />
                 {p.label}
               </label>
               {/* 右對齊＋等寬數字，拖動時數字改變不會讓位置左右跳動 */}
-              <output htmlFor={inputId} className="tabular-nums">
+              <output htmlFor={inputId} className={MONO}>
                 {share === null ? (
-                  <span className="text-base font-semibold text-text-dim">—</span>
+                  <span className="text-sm font-semibold text-text-dim">—</span>
                 ) : (
                   <>
-                    <span className="text-base font-semibold">{share}</span>
-                    <span className="ml-0.5 text-xs text-text-muted">%</span>
+                    <span className="text-sm font-semibold">{share}</span>
+                    <span className="ml-0.5 text-xs text-text-dim">%</span>
                   </>
                 )}
               </output>
@@ -303,11 +408,10 @@ function PreferenceSliders({
 }
 
 /**
- * 口碑裡特別在意的面向（選填）。選了的面向佔該零件口碑的一半，其餘面向平均分另一半，
+ * 口碑裡特別在意的面向（選填）。指定的面向從口碑比重中分出一半單獨計分，
  * 所以是「加重」而不是「只看」。選項只列後端認定評論資料夠的面向。
  *
- * 用可複選的切換鈕而不是下拉選單：每類只有 2~4 個選項，一眼看得完，也不必多點一下。
- * 樣式與升級建議的級距按鈕相同（選取＝黑底），不另外發明新的選取狀態。
+ * 用可複選的切換鈕而不是下拉選單：每類只有 1~3 個選項，一眼看得完，也不必多點一下。
  */
 function AspectPicker({
   options,
@@ -334,7 +438,7 @@ function AspectPicker({
   }
 
   return (
-    <div role="group" aria-labelledby={`${id}-title`} className="flex flex-col gap-4">
+    <div role="group" aria-labelledby={`${id}-title`} className="flex flex-col gap-3">
       <div className="flex items-baseline justify-between gap-4">
         <span id={`${id}-title`} className="text-sm font-medium">
           特別在意的口碑面向
@@ -351,113 +455,212 @@ function AspectPicker({
         )}
       </div>
 
-      {options.map((opt) => (
-        <div key={opt.category} className="flex flex-col gap-2">
-          <span className="text-sm text-text-muted">{opt.category}</span>
-          <div className="flex flex-wrap gap-2">
-            {opt.aspects.map((aspect) => {
-              const on = value[opt.category]?.includes(aspect) ?? false;
-              return (
-                <button
-                  key={aspect}
-                  type="button"
-                  aria-pressed={on}
-                  onClick={() => toggle(opt.category, aspect)}
-                  className={`rounded-sm border px-3 py-1.5 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 ${
-                    on
-                      ? "border-accent bg-accent text-accent-inverse"
-                      : "border-border-strong text-text-muted hover:text-text"
-                  }`}
-                >
-                  {aspect}
-                </button>
-              );
-            })}
+      <dl className="grid grid-cols-[3.5rem_minmax(0,1fr)] items-center gap-x-3 gap-y-2">
+        {options.map((opt) => (
+          <div key={opt.category} className="contents">
+            <dt className={`text-xs text-text-dim ${MONO}`}>{opt.category}</dt>
+            <dd className="flex flex-wrap gap-1.5">
+              {opt.aspects.map((aspect) => {
+                const on = value[opt.category]?.includes(aspect) ?? false;
+                return (
+                  <button
+                    key={aspect}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() => toggle(opt.category, aspect)}
+                    className={`inline-flex items-center gap-1 rounded-sm border px-2.5 py-1 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 ${
+                      on
+                        ? "border-accent bg-accent text-accent-inverse"
+                        : "border-border-strong text-text-muted hover:border-text-dim hover:text-text"
+                    }`}
+                  >
+                    {on && (
+                      <svg viewBox="0 0 12 12" className="size-3" aria-hidden>
+                        <path d="M2.5 6.5 5 9l4.5-5.5" fill="none" stroke="currentColor" strokeWidth="1.5" />
+                      </svg>
+                    )}
+                    {aspect}
+                  </button>
+                );
+              })}
+            </dd>
           </div>
-        </div>
-      ))}
+        ))}
+      </dl>
 
       <p className="text-xs text-text-dim">
-        選了的面向會佔該零件口碑的一半，其餘面向仍會列入。只列出論壇評論夠多、分得出型號差異的面向。
+        指定的面向佔口碑比重的一半，其餘面向仍會列入。只列出論壇評論夠多、分得出型號差異的面向。
       </p>
     </div>
   );
 }
 
-function ResultView({ result }: { result: RecommendResponse }) {
+// ── 右側：未生成前 ───────────────────────────────────────────────────────────
 
+/** 細格線背景用 SVG pattern 畫（設計系統不用漸層），線條顏色跟著主題的邊框色。 */
+function EmptyState({ loading }: { loading: boolean }) {
+  const id = useId();
   return (
-    <section>
-      <div className="grid grid-cols-3 gap-px overflow-hidden rounded-lg border border-border bg-border">
-        <Stat label="總價" value={`NT$${result.total_price.toLocaleString()}`} />
-        <Stat label="預算" value={`NT$${result.budget.toLocaleString()}`} />
-        <Stat label="剩餘" value={`NT$${result.remaining.toLocaleString()}`} />
-      </div>
-
-      <div
-        className={`mt-6 rounded-sm border px-4 py-3 text-sm ${
-          result.compatibility.ok
-            ? "border-border text-text-muted"
-            : "border-red-300 bg-red-50 text-red-700"
-        }`}
-      >
-        {result.compatibility.ok ? (
-          <div>
-            <p>相容性檢查通過</p>
-            {/* 允許轉接線時，「需使用轉接線」會以不扣分的提醒出現 */}
-            {result.compatibility.issues.length > 0 && (
-              <ul className="mt-1 list-disc pl-5">
-                {result.compatibility.issues.map((issue, i) => (
-                  <li key={i}>{issue}</li>
-                ))}
-              </ul>
-            )}
-          </div>
+    <div className="relative overflow-hidden rounded-lg border border-border">
+      <svg className="absolute inset-0 size-full text-border" aria-hidden>
+        <defs>
+          <pattern id={`${id}-grid`} width="24" height="24" patternUnits="userSpaceOnUse">
+            <path d="M24 0H0V24" fill="none" stroke="currentColor" strokeWidth="1" />
+          </pattern>
+        </defs>
+        <rect width="100%" height="100%" fill={`url(#${id}-grid)`} />
+      </svg>
+      <div className="relative flex flex-col items-center px-6 py-20 text-center">
+        <div className="flex size-12 items-center justify-center rounded-lg border border-border-strong bg-bg">
+          <svg viewBox="0 0 24 24" className={`size-6 text-text ${loading ? "animate-pulse" : ""}`} aria-hidden>
+            <rect x="6" y="6" width="12" height="12" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.5" />
+            <rect x="9.5" y="9.5" width="5" height="5" fill="none" stroke="currentColor" strokeWidth="1.5" />
+            <path
+              d="M9 3v3M12 3v3M15 3v3M9 18v3M12 18v3M15 18v3M3 9h3M3 12h3M3 15h3M18 9h3M18 12h3M18 15h3"
+              stroke="currentColor"
+              strokeWidth="1.5"
+            />
+          </svg>
+        </div>
+        {loading ? (
+          <>
+            <p className="mt-5 text-base font-semibold">正在搜尋最佳組合</p>
+            <p className="mt-1 text-sm text-text-muted">族群 300 × 演化 300 代，大約需要 10~15 秒。</p>
+          </>
         ) : (
-          <div>
-            <p className="font-medium">相容性檢查發現問題</p>
-            <ul className="mt-1 list-disc pl-5">
-              {result.compatibility.issues.map((issue, i) => (
-                <li key={i}>{issue}</li>
+          <>
+            <p className="mt-5 text-base font-semibold">尚未生成配置</p>
+            <p className="mt-1 max-w-sm text-sm text-text-muted">
+              在左側設定條件後按「生成配置」，推薦的零件與口碑依據會顯示在這裡。
+            </p>
+            <ol className="mt-6 flex flex-wrap justify-center gap-2 text-xs text-text-muted">
+              {["輸入預算與用途", "調整偏好比重（選填）", "生成配置"].map((step, i) => (
+                <li key={step} className="flex items-center gap-1.5 rounded-sm border border-border bg-bg px-2 py-1">
+                  <span className={`text-text-dim ${MONO}`}>{i + 1}</span>
+                  {step}
+                </li>
               ))}
-            </ul>
-          </div>
+            </ol>
+          </>
         )}
       </div>
+    </div>
+  );
+}
 
-      <table className="mt-8 w-full border-collapse text-sm">
-        <thead>
-          <tr className="border-b border-text text-left">
-            <th className="py-2 font-medium">類別</th>
-            <th className="py-2 font-medium">品項</th>
-            <th className="py-2 font-medium text-right">價格</th>
-            <th className="py-2 pl-4 font-medium whitespace-nowrap text-right">口碑分數</th>
-          </tr>
-        </thead>
-        <tbody>
-          {result.parts.map((part) => (
-            <tr key={part.category} className="border-b border-border">
-              <td className="py-2 pr-4 whitespace-nowrap text-text-muted">{part.category}</td>
-              <td className="py-2">{part.name}</td>
-              <td className="py-2 pl-4 whitespace-nowrap text-right">
-                NT${part.price.toLocaleString()}
-              </td>
-              <td className="py-2 text-right">{part.score.toFixed(2)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+// ── 右側：結果 ───────────────────────────────────────────────────────────────
+
+function ResultView({ result }: { result: RecommendResponse }) {
+  const used = result.budget > 0 ? result.total_price / result.budget : 0;
+  const { ok, issues } = result.compatibility;
+
+  return (
+    <section className="flex flex-col gap-10">
+      {/* 預算摘要：1px 共用邊框的網格，底部一條預算使用率 */}
+      <div className="overflow-hidden rounded-lg border border-border">
+        <div className="grid grid-cols-3 divide-x divide-border">
+          <Stat label="總價" value={money(result.total_price)} strong />
+          <Stat label="預算" value={money(result.budget)} />
+          {/* GA 允許超支 20% 以內（會扣分），超支時改標「超支」，不顯示負的剩餘 */}
+          <Stat
+            label={result.remaining < 0 ? "超支" : "剩餘"}
+            value={money(Math.abs(result.remaining))}
+          />
+        </div>
+        <div className="flex items-center gap-3 border-t border-border px-4 py-2.5">
+          <span className="h-1 flex-1 overflow-hidden rounded-full bg-border" aria-hidden>
+            <span className="block h-full bg-text" style={{ width: `${Math.min(used, 1) * 100}%` }} />
+          </span>
+          <span className={`text-xs text-text-muted ${MONO}`}>預算使用 {(used * 100).toFixed(1)}%</span>
+        </div>
+      </div>
+
+      <div>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-base font-semibold">推薦配置</h2>
+          <span className="inline-flex items-center gap-2 rounded-sm border border-border px-2 py-1 text-xs text-text-muted">
+            <span className={`size-1.5 rounded-full ${ok ? "bg-emerald-500" : "bg-red-500"}`} aria-hidden />
+            {ok ? "相容性檢查通過" : "相容性檢查發現問題"}
+          </span>
+        </div>
+
+        {/* 允許轉接線時，「需使用轉接線」會以不扣分的提醒出現 */}
+        {issues.length > 0 && (
+          <ul
+            className={`mt-3 list-disc rounded-sm border px-4 py-2 pl-8 text-xs leading-relaxed ${
+              ok ? "border-border bg-bg-alt text-text-muted" : "border-red-300 bg-red-50 text-red-700"
+            }`}
+          >
+            {issues.map((issue, i) => (
+              <li key={i}>{issue}</li>
+            ))}
+          </ul>
+        )}
+
+        <PartsTable parts={result.parts} />
+      </div>
 
       <SentimentEvidence parts={result.parts} />
-
-      <UpgradeSection result={result} />
     </section>
+  );
+}
+
+function Stat({ label, value, strong = false }: { label: string; value: string; strong?: boolean }) {
+  return (
+    <div className="min-w-0 px-3 py-3 sm:px-4">
+      <p className="text-xs text-text-muted">{label}</p>
+      <p className={`mt-1 truncate text-sm sm:text-lg ${MONO} ${strong ? "font-semibold text-text" : "font-medium text-text-muted"}`}>
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function PartsTable({ parts }: { parts: RecommendedPart[] }) {
+  return (
+    <table className="mt-3 w-full border-collapse text-sm">
+      <thead>
+        <tr className="border-b border-text text-left text-xs text-text-muted">
+          <th className="hidden py-2 pr-4 font-medium sm:table-cell">類別</th>
+          <th className="py-2 font-medium">品項</th>
+          <th className="py-2 pl-4 text-right font-medium">價格</th>
+          <th className="py-2 pl-6 text-right font-medium whitespace-nowrap">口碑分數</th>
+        </tr>
+      </thead>
+      <tbody>
+        {parts.map((part) => {
+          const { main, specs } = splitPartName(part.name);
+          return (
+            <tr key={part.category} className="border-b border-border align-top">
+              <td className="hidden py-2.5 pr-4 whitespace-nowrap text-text-muted sm:table-cell">{part.category}</td>
+              <td className="py-2.5">
+                {/* 窄螢幕不放類別欄，改成品名上方的小字 */}
+                <p className="text-xs text-text-dim sm:hidden">{part.category}</p>
+                <p className="font-medium text-text">{main}</p>
+                {specs.length > 0 && (
+                  <p className="mt-0.5 text-xs leading-relaxed text-text-dim">{specs.join(" · ")}</p>
+                )}
+              </td>
+              <td className={`py-2.5 pl-4 text-right whitespace-nowrap ${MONO}`}>{money(part.price)}</td>
+              <td className="py-2.5 pl-6">
+                <span className="flex items-center justify-end gap-2">
+                  <span className="hidden sm:inline-flex">
+                    <MiniBar value={part.score} />
+                  </span>
+                  <span className={`w-9 text-right ${MONO}`}>{part.score.toFixed(2)}</span>
+                </span>
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
   );
 }
 
 /**
  * 口碑分數的依據：每個零件各面向的名次與正負評價則數，並連到該型號的原始評論。
- * 讓使用者能自己核對「指定了 CP值，選到的這顆 CP值口碑到底好不好」，而不是只能相信系統。
+ * 讓使用者能自己核對「指定了某個面向，選到的這顆在該面向口碑到底好不好」，而不是只能相信系統。
  *
  * 名次照實顯示：指定的面向只佔整體評分的一小部分，選到的零件可能只是中段，
  * 這時候就該顯示中段，不能只挑好看的講。
@@ -471,8 +674,8 @@ function SentimentEvidence({ parts }: { parts: RecommendedPart[] }) {
   const anyPicked = withEvidence.some((p) => p.sentiment!.aspects.some((a) => a.picked));
 
   return (
-    <div className="mt-10">
-      <h2 className="text-lg font-semibold">口碑依據</h2>
+    <div>
+      <h2 className="text-base font-semibold">口碑依據</h2>
       <p className="mt-1 text-sm text-text-muted">
         {anyPicked ? "標示「已加重」的是你指定的面向。" : ""}
         名次是在同類別、該面向論壇評價達 10 則的型號之間排的；評價不足的面向不排名，系統以類別平均計。
@@ -481,38 +684,41 @@ function SentimentEvidence({ parts }: { parts: RecommendedPart[] }) {
       <div className="mt-4 grid items-start gap-4 md:grid-cols-2 2xl:grid-cols-3">
         {withEvidence.map((part) => {
           const { model, aspects } = part.sentiment!;
-          if (model === null) {
-            return (
-              <div key={part.category} className="rounded-lg border border-border p-4 text-sm">
-                <p className="font-medium text-text-muted">{part.category}</p>
-                <p className="mt-3 text-text-muted">
-                  這個型號在論壇上找不到對應的評論，口碑以{part.category}的類別平均計，
-                  指定的面向對它沒有作用。
-                </p>
-              </div>
-            );
-          }
           // 指定的面向排最前面，其餘維持後端的順序
           const rows = [...aspects.filter((a) => a.picked), ...aspects.filter((a) => !a.picked)];
           return (
-            <div key={part.category} className="rounded-lg border border-border p-4 text-sm">
-              <div className="flex items-baseline justify-between gap-4">
-                <p className="font-medium">
-                  <span className="text-text-muted">{part.category}</span>
-                  <span className="ml-2">{model}</span>
-                </p>
-                <Link
-                  href={`/parts/${encodeURIComponent(model)}`}
-                  className="shrink-0 text-xs text-text-muted underline-offset-4 transition-colors hover:text-text hover:underline"
-                >
-                  看原始評論
-                </Link>
+            <div key={part.category} className="flex flex-col rounded-lg border border-border text-sm">
+              <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="shrink-0 rounded-sm border border-border px-1.5 py-0.5 text-xs text-text-muted">
+                    {part.category}
+                  </span>
+                  <span className={`truncate font-semibold ${MONO}`}>{model ?? "—"}</span>
+                </div>
+                {model && (
+                  <Link
+                    href={`/parts/${encodeURIComponent(model)}`}
+                    className="shrink-0 text-xs text-text-muted underline-offset-4 transition-colors hover:text-text hover:underline"
+                  >
+                    看原始評論 ↗
+                  </Link>
+                )}
               </div>
-              <ul className="mt-3 divide-y divide-border">
-                {rows.map((a) => (
-                  <AspectRow key={a.aspect} aspect={a} />
-                ))}
-              </ul>
+
+              {model === null ? (
+                <div className="m-4 rounded-sm border border-dashed border-border-strong bg-bg-alt px-4 py-6 text-center">
+                  <p className="text-sm font-medium text-text-muted">找不到對應的論壇評論</p>
+                  <p className="mt-1 text-xs leading-relaxed text-text-dim">
+                    口碑以{part.category}的類別平均計，指定的面向對它沒有作用。
+                  </p>
+                </div>
+              ) : (
+                <ul className="divide-y divide-border px-4">
+                  {rows.map((a) => (
+                    <AspectRow key={a.aspect} aspect={a} category={part.category} />
+                  ))}
+                </ul>
+              )}
             </div>
           );
         })}
@@ -526,133 +732,79 @@ function SentimentEvidence({ parts }: { parts: RecommendedPart[] }) {
   );
 }
 
-function AspectRow({ aspect: a }: { aspect: AspectEvidence }) {
+/**
+ * 一個面向的口碑：名次、正負評價則數與比例條。評價不足（沒有名次）的面向整列淡化，
+ * 讓有實質排名的面向跳出來。比例條正面用黑、負面用淺灰，不用紅綠（設計系統不用彩色）。
+ */
+function AspectRow({ aspect: a, category }: { aspect: AspectEvidence; category: string }) {
   const total = a.positive + a.negative;
   const diff = a.score - a.category_avg;
+  const ranked = a.rank !== null;
   return (
-    <li className={`py-2 ${a.picked ? "" : "text-text-muted"}`}>
-      <div className="flex items-baseline justify-between gap-4">
-        <span className={a.picked ? "font-medium text-text" : ""}>
+    <li className={`py-2.5 ${ranked || a.picked ? "" : "opacity-50"}`}>
+      <div className="flex items-center justify-between gap-3">
+        <span className={`flex items-center gap-2 ${a.picked ? "font-semibold text-text" : "text-text"}`}>
           {a.aspect}
           {a.picked && (
-            <span className="ml-2 rounded-sm bg-accent px-1.5 py-0.5 text-xs font-normal text-accent-inverse">
-              已加重
-            </span>
+            <span className="rounded-sm bg-accent px-1.5 py-0.5 text-xs font-normal text-accent-inverse">已加重</span>
           )}
         </span>
-        <span className="tabular-nums">
-          {a.rank === null ? (
-            <span className="text-text-dim">評價不足</span>
-          ) : (
-            <>
-              第 <span className="font-semibold text-text">{a.rank}</span> / {a.ranked_total} 名
-            </>
-          )}
-        </span>
+        {ranked ? (
+          <MonoBadge emphasis={a.rank === 1}>
+            第 {a.rank} / {a.ranked_total} 名
+          </MonoBadge>
+        ) : (
+          <span className="text-xs text-text-dim">評價不足</span>
+        )}
       </div>
-      <p className="mt-0.5 text-xs tabular-nums text-text-dim">
-        {total === 0 ? "沒有評價" : `正面 ${a.positive} 則・負面 ${a.negative} 則`}
-        {a.rank !== null && (
-          <>
-            ・分數 {a.score.toFixed(2)}（
-            {Math.abs(diff) < 0.005 ? "與類別平均相同" : `${diff > 0 ? "高於" : "低於"}類別平均 ${a.category_avg.toFixed(2)}`}
-            ）
-          </>
+
+      {total > 0 && (
+        <span className="mt-2 flex h-1 gap-px overflow-hidden rounded-full" aria-hidden>
+          {a.positive > 0 && <span className="h-full bg-text" style={{ flexGrow: a.positive }} />}
+          {a.negative > 0 && <span className="h-full bg-border-strong" style={{ flexGrow: a.negative }} />}
+        </span>
+      )}
+
+      <p className={`mt-1.5 flex flex-wrap justify-between gap-x-3 text-xs text-text-dim ${MONO}`}>
+        <span>{total === 0 ? "沒有評價" : `正面 ${a.positive}・負面 ${a.negative}`}</span>
+        {ranked && (
+          <span>
+            {a.score.toFixed(2)}
+            <span className="ml-1">
+              {Math.abs(diff) < 0.005
+                ? "＝ 類別平均"
+                : `${diff > 0 ? "▲" : "▼"} 類別平均 ${a.category_avg.toFixed(2)}`}
+            </span>
+          </span>
         )}
       </p>
+
+      {a.picked && <PickedHint aspect={a} category={category} />}
     </li>
   );
 }
 
 /**
- * 升級建議依加價幅度分級。GA 會把預算用到只剩幾個百分點，光靠剩餘預算幾乎只換得動
- * 電源，所以額外提供「多花 10% / 20% 能換到什麼」讓使用者自己權衡。
+ * 使用者指定的面向「看不出效果」的兩種情況，直接說明原因，不然會以為功能壞了：
+ *   - 評價不足：這個零件在該面向不到 10 則評價，系統給類別平均，指定對它不加分也不扣分。
+ *     常見於低預算：該面向評價較好的型號要換 CPU 平台或超出預算，權衡後不划算。
+ *   - 第 1 名：已經是同類最好的，換不到更好的。
  */
-function UpgradeSection({ result }: { result: RecommendResponse }) {
-  const [selected, setSelected] = useState(0);
-  const tiers = result.upgrade_tiers;
-  if (tiers.length === 0) return null;
-
-  // 換了預算重新搜尋後級距數量可能變少，夾住索引避免落在不存在的級距上
-  const tier = tiers[Math.min(selected, tiers.length - 1)];
-
-  return (
-    <div className="mt-10">
-      <h2 className="text-lg font-semibold">升級建議</h2>
-      <p className="mt-1 text-sm text-text-muted">
-        效能提升依 PassMark 跑分計算，沒有跑分資料的類別只列規格差異，不換算成百分比。
+function PickedHint({ aspect: a, category }: { aspect: AspectEvidence; category: string }) {
+  if (a.rank === null) {
+    return (
+      <p className="mt-2 rounded-sm border border-border bg-bg-alt px-2.5 py-1.5 text-xs leading-relaxed text-text-muted">
+        這款{category}的「{a.aspect}」評價不足 10 則，系統以類別平均計，指定的面向對它不加分也不扣分。
+        「{a.aspect}」評價較好的型號在這個預算下需要換 CPU 平台或超出預算，權衡後沒有被選上。
       </p>
-
-      <div className="mt-4 flex gap-2">
-        {tiers.map((t, i) => (
-          <button
-            key={t.extra_ratio}
-            onClick={() => setSelected(i)}
-            className={`rounded-sm border px-3 py-1.5 text-sm transition-colors ${
-              t === tier
-                ? "border-accent bg-accent text-accent-inverse"
-                : "border-border-strong text-text-muted hover:text-text"
-            }`}
-          >
-            {t.extra_ratio === 0 ? "不加價" : `加價 ${(t.extra_ratio * 100).toFixed(0)}%`}
-          </button>
-        ))}
-      </div>
-
-      <p className="mt-3 text-sm text-text-muted">
-        多花 NT${tier.spent.toLocaleString()}，總價 NT$
-        {result.total_price.toLocaleString()} → NT${tier.new_total_price.toLocaleString()}
-        <span className="ml-1 text-text-dim">（這一級的項目可以一起買）</span>
+    );
+  }
+  if (a.rank === 1) {
+    return (
+      <p className="mt-2 rounded-sm border border-border bg-bg-alt px-2.5 py-1.5 text-xs leading-relaxed text-text-muted">
+        已是同類「{a.aspect}」第 1 名，沒有更好的選擇。
       </p>
-
-      <div className="mt-4 grid gap-4 xl:grid-cols-2">
-        {tier.upgrades.map((u, i) => (
-          <div key={i} className="rounded-lg border border-border p-4 text-sm">
-            <p className="font-medium">
-              {u.category}：{u.current_name} → {u.upgrade_name}
-            </p>
-            <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-text-muted">
-              <span>加價 NT${u.cost.toLocaleString()}</span>
-              {u.benchmark_gain_pct !== null && (
-                <span className="font-medium text-text">
-                  效能 {formatGain(u.benchmark_gain_pct)}
-                </span>
-              )}
-              {Math.abs(u.sentiment_delta) >= 0.01 && (
-                <span>
-                  論壇口碑 {u.sentiment_delta > 0 ? "+" : ""}
-                  {u.sentiment_delta.toFixed(2)}
-                </span>
-              )}
-            </div>
-            {u.spec_changes.length > 0 && (
-              <ul className="mt-2 list-disc pl-5 text-text-dim">
-                {u.spec_changes.map((s) => (
-                  <li key={s}>{s}</li>
-                ))}
-              </ul>
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/**
- * 跑分差距大的時候百分比會失去可讀性——GT710 換 RTX5080 是 +5667%，
- * 寫成「約 58 倍」才看得懂。倍數門檻設在 100%（也就是兩倍）。
- */
-function formatGain(pct: number): string {
-  if (pct >= 100) return `約 ${(1 + pct / 100).toFixed(1)} 倍`;
-  return `+${pct}%`;
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="bg-bg p-4">
-      <p className="text-xs text-text-muted">{label}</p>
-      <p className="mt-1 text-xl font-semibold">{value}</p>
-    </div>
-  );
+    );
+  }
+  return null;
 }
