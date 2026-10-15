@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState, type CSSProperties, type FormEvent } from "react";
+import { useEffect, useId, useState, useSyncExternalStore, type CSSProperties, type FormEvent } from "react";
 import Link from "next/link";
 import {
   fetchSelectableAspects,
@@ -49,25 +49,95 @@ function defaultSliders(usage: Usage): PreferenceWeights {
   };
 }
 
+/**
+ * 表單設定與配單結果存在 sessionStorage：切到「零件口碑」再切回來時頁面會重新掛載，
+ * 不存的話配好的單就不見了。用 sessionStorage 而不是 localStorage：同一個分頁內
+ * 切換頁面、重新整理都還在，關掉分頁就清掉，不會把很久以前的配單（價格已過時）帶回來。
+ * 結構改了就換 key 的版本號，舊資料直接忽略。
+ */
+const STORAGE_KEY = "builder-state-v1";
+
+interface SavedState {
+  budget: string;
+  usage: Usage;
+  weights: PreferenceWeights;
+  cooling: CoolingPreference;
+  allowAdapter: boolean;
+  aspectPrefs: AspectPrefs;
+  result: RecommendResponse | null;
+}
+
+function loadSaved(): SavedState | null {
+  try {
+    const raw = sessionStorage.getItem(STORAGE_KEY);
+    return raw ? (JSON.parse(raw) as SavedState) : null;
+  } catch {
+    // 無痕模式、儲存空間被封鎖或內容損壞時，當作沒有存過
+    return null;
+  }
+}
+
 function isCustomized(usage: Usage, weights: PreferenceWeights): boolean {
   const defaults = defaultSliders(usage);
   return PREFERENCES.some((p) => weights[p.key] !== defaults[p.key]);
 }
 
+const noopSubscribe = () => () => {};
+
+/**
+ * 伺服器端沒有 sessionStorage，在 useState 初始值裡讀會讓伺服器與瀏覽器渲染出不同的
+ * 畫面（hydration mismatch）；掛載後在 effect 裡還原又會多一輪渲染。所以等確定在瀏覽器端
+ * 才渲染表單，把存著的狀態當初始值傳進去。伺服器端與 hydration 期間先只放標題。
+ */
 export default function BuilderPage() {
+  const onClient = useSyncExternalStore(noopSubscribe, () => true, () => false);
+  if (!onClient) {
+    return (
+      <main className="mx-auto w-full max-w-360 flex-1 px-6 py-12">
+        <PageHeader />
+      </main>
+    );
+  }
+  return <Builder saved={loadSaved()} />;
+}
+
+function PageHeader() {
+  return (
+    <>
+      <h1 className="text-3xl font-semibold tracking-tight">配置建置器</h1>
+      <p className="mt-2 text-sm text-text-muted">
+        輸入預算與需求，透過遺傳演算法從零件資料庫中挑出最佳組合。
+      </p>
+    </>
+  );
+}
+
+function Builder({ saved }: { saved: SavedState | null }) {
   // 存字串而不是數字：存數字的話清空欄位會讓 Number("") 變成 0，畫面重新渲染出
   // 一個刪不掉的「0」——想刪它又觸發同一次轉換，使用者永遠清不乾淨。
-  const [budget, setBudget] = useState("40000");
-  const [usage, setUsage] = useState<Usage>(INITIAL_USAGE);
-  const [weights, setWeights] = useState<PreferenceWeights>(() => defaultSliders(INITIAL_USAGE));
-  const [cooling, setCooling] = useState<CoolingPreference>("auto");
+  const [budget, setBudget] = useState(saved?.budget ?? "40000");
+  const [usage, setUsage] = useState<Usage>(saved?.usage ?? INITIAL_USAGE);
+  const [weights, setWeights] = useState<PreferenceWeights>(
+    () => saved?.weights ?? defaultSliders(INITIAL_USAGE),
+  );
+  const [cooling, setCooling] = useState<CoolingPreference>(saved?.cooling ?? "auto");
   // 16-pin 顯卡能不能用轉接線接在沒有原生 16-pin 的電源上；預設不允許（後端只推薦有原生接頭的電源）
-  const [allowAdapter, setAllowAdapter] = useState(false);
+  const [allowAdapter, setAllowAdapter] = useState(saved?.allowAdapter ?? false);
   const [selectable, setSelectable] = useState<SelectableAspects[]>([]);
-  const [aspectPrefs, setAspectPrefs] = useState<AspectPrefs>({});
+  const [aspectPrefs, setAspectPrefs] = useState<AspectPrefs>(saved?.aspectPrefs ?? {});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<RecommendResponse | null>(null);
+  const [result, setResult] = useState<RecommendResponse | null>(saved?.result ?? null);
+
+  // 設定或結果一改就寫回 sessionStorage
+  useEffect(() => {
+    const state: SavedState = { budget, usage, weights, cooling, allowAdapter, aspectPrefs, result };
+    try {
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    } catch {
+      // 寫不進去（無痕模式、容量滿）就算了，只是切頁後不會保留
+    }
+  }, [budget, usage, weights, cooling, allowAdapter, aspectPrefs, result]);
 
   useEffect(() => {
     let cancelled = false;
@@ -112,10 +182,7 @@ export default function BuilderPage() {
 
   return (
     <main className="mx-auto w-full max-w-360 flex-1 px-6 py-12">
-      <h1 className="text-3xl font-semibold tracking-tight">配置建置器</h1>
-      <p className="mt-2 text-sm text-text-muted">
-        輸入預算與需求，透過遺傳演算法從零件資料庫中挑出最佳組合。
-      </p>
+      <PageHeader />
 
       {/* 寬螢幕左邊放表單、右邊放結果，結果不必捲到表單底下才看得到；窄螢幕照原本上下排 */}
       <div className="mt-8 grid items-start gap-8 lg:grid-cols-[22rem_minmax(0,1fr)]">
