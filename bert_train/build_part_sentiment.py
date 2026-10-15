@@ -17,10 +17,12 @@
 #      同一顆晶片的不同版本（SAME_CHIP）評價合在一起算，共用同一組分數
 #
 # 面向用各類別自己的清單（CPU 6 個、風冷 4 個…），不合併成五大面向。
+# 「CP值」面向不輸出（EXCLUDED_ASPECTS），理由見該常數的說明。
 #
 # 用法（專案根目錄）：
 #   python bert_train/build_part_sentiment.py
 #   python bert_train/build_part_sentiment.py --keep-high-risk     # 高風險筆數也算進去
+#   python bert_train/build_part_sentiment.py --exclude-aspects     # 不排除任何面向（保留 CP值）
 # 輸出：
 #   data/aspect_reviews_final.jsonl     ← 實際拿來算分數的評論
 #   data/aspect_reviews_dropped.jsonl   ← 被拿掉的相關評論與原因，供複查
@@ -46,6 +48,13 @@ from exclude_prerelease import days_before_release  # noqa: E402
 # 顯卡型號分數的標準差是 0.086 / 0.059 / 0.049 / 0.039。太小壓不住雜訊，太大型號之間分不出高下。
 PRIOR_STRENGTH = 10
 SCORE_FILE = ROOT / "code" / "ga_pc_builder" / "data" / "part_aspect_sentiment.json"
+
+# 不算進口碑分數的面向。
+# CP值：口碑的 CP值 與「PassMark 跑分 ÷ 現在價格」的排名幾乎無關（Spearman 顯卡 −0.12、CPU −0.03），
+# 評論多半寫在首發或缺貨時，反映的是當時的價格；GA 的 fitness 已經用現在的價格算 CP 值，
+# 兩者會互相拉扯。拿掉後口碑只留規格與價格看不到的資訊（效能滿意度、穩定、VRAM、用料…）。
+# 實測遊戲 30k/40k/60k/80k × 三種偏好共 12 個情境，9 個選配完全不變。
+EXCLUDED_ASPECTS = ("CP值",)
 
 # 同一顆晶片的不同版本：Intel 型號結尾的 F 只代表沒有內建顯示，效能、溫度、功耗都相同。
 # 分開算的話樣本少的那一版分數會亂跳（265K 與 265KF 的效能分數曾差到 0.25），
@@ -75,7 +84,7 @@ def flag_high_risk(rows):
     return {id(kept[i].get("_orig", kept[i])): why for i, why in find_high_risk(kept).items()}
 
 
-def aggregate(rows, k):
+def aggregate(rows, k, excluded=()):
     """回傳 {'類別|型號': {...}, '_prior': {類別: {...}}}，型號鍵的格式與 part_sentiment.json 相同"""
     counts = defaultdict(lambda: defaultdict(lambda: {"正面": 0, "負面": 0}))
     reviews = defaultdict(Counter)
@@ -85,6 +94,8 @@ def aggregate(rows, k):
         members[key].add(r["model"])
         reviews[key][r["source"]] += 1
         for aspect, label in r["aspects"].items():
+            if aspect in excluded:
+                continue
             cell = counts[key][aspect]   # 沒被提到的面向也要出現在輸出裡
             if label != UNMENTIONED:
                 cell[label] += 1
@@ -143,7 +154,7 @@ def main(args):
         else:
             final.append(r)
 
-    scores = aggregate(final, args.prior_strength)
+    scores = aggregate(final, args.prior_strength, args.exclude_aspects)
 
     out = Path(args.output_dir)
     write_jsonl(out / "aspect_reviews_final.jsonl", final)
@@ -187,4 +198,6 @@ if __name__ == "__main__":
     ap.add_argument("--prior-strength", type=float, default=PRIOR_STRENGTH,
                     help="往類別平均靠的力道，0 表示不修正（沒人提的面向仍給類別平均）")
     ap.add_argument("--keep-high-risk", action="store_true", help="高風險筆數也算進分數")
+    ap.add_argument("--exclude-aspects", nargs="*", default=list(EXCLUDED_ASPECTS),
+                    help="不算進口碑分數的面向；只寫旗標不給值表示不排除任何面向")
     main(ap.parse_args())

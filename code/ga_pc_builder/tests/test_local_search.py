@@ -49,22 +49,25 @@ def _stuck(ga):
     return b
 
 
-def test_stuck_build_cannot_improve_by_one_part():
-    """前提：卡住的配置換任何一個零件都不會更好（確認測試用的配置真的是卡住的那組）"""
+def _trapped(ga):
+    """卡住的配置先做單一零件爬山，推到目前口碑資料下的局部最佳。
+    口碑檔重建後小零件（主機板、散熱器）的最佳款會變，所以不直接用寫死的那組當局部最佳"""
+    random.seed(0)
+    return ga._polish(_stuck(ga))
+
+
+def test_single_part_moves_stay_trapped():
+    """前提：只換單一零件（以及顯卡＋電源成對）怎麼爬都離不開 5600XT + RX7650GRE"""
     ga = _ga()
-    b = _stuck(ga)
-    f0 = ga.fitness(b)
-    for cat in b.parts:
-        for part in ga.catalog.get(cat):
-            c = b.copy()
-            c.parts[cat] = part
-            assert ga.fitness(c) <= f0 + 1e-9
+    b = _trapped(ga)
+    assert b.parts["CPU"].specs.get("ptt_model") == "AMD R5 5600XT"
+    assert b.parts["GPU"].specs.get("ptt_model") == "RX7650GRE"
 
 
 def test_local_search_escapes_stuck_build():
     ga = _ga()
+    b = _trapped(ga)
     random.seed(0)
-    b = _stuck(ga)
     better = ga._local_search(b)
     assert better is not None
     assert ga.fitness(better) > ga.fitness(b) + 0.03

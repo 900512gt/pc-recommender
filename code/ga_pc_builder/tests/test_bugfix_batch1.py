@@ -129,7 +129,7 @@ def test_parallel_requests_share_scorer_safely():
     """api.py 讓所有請求共用同一個 SentimentScorer。不同用途、不同口碑偏好的請求同時跑，
     每個結果的分數都要跟事後單獨重算的一致（舊版 set_usage 會互相蓋掉，還會 KeyError）"""
     catalog, scorer = _setup()
-    jobs = [("遊戲", None), ("工作", {"GPU": ["穩定"]}), ("一般文書", {"CPU": ["CP值"]}), ("遊戲", {"主機板": ["用料"]})]
+    jobs = [("遊戲", None), ("工作", {"GPU": ["穩定"]}), ("一般文書", {"CPU": ["效能"]}), ("遊戲", {"主機板": ["用料"]})]
     out, errors = [None] * len(jobs), []
 
     def work(i, usage, prefs):
