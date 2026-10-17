@@ -199,7 +199,7 @@ def test_same_seed_same_result_across_hash_seeds():
     root = str(Path(__file__).resolve().parent.parent)
     outs = []
     for h in ("1", "2"):
-        env = dict(os.environ, PYTHONHASHSEED=h)
+        env = dict(os.environ, PYTHONHASHSEED=h, PYTHONIOENCODING="utf-8")
         r = subprocess.run([sys.executable, "-c", _RUN_ONCE.format(root=root)],
                            capture_output=True, text=True, encoding="utf-8", env=env, timeout=300)
         assert r.returncode == 0, r.stderr
