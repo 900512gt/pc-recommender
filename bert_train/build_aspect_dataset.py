@@ -17,6 +17,13 @@
 #   6. 步驟 1、2 拿掉的資料裡，落在 test 討論串的另存成 test_hard.jsonl（沿用 p3 標註），
 #      用來估計「拿掉難題」讓 test 分數高估了多少
 #
+# 教授 2026-10-20 的兩項調整（用參數開啟，預設維持原本的資料）：
+#   --drop-irrelevant  不相關評論完全不放進訓練（原本 PTT 不相關改成全未提及當負例）。
+#                      切分仍先對全部資料做，相關評論落在哪個集合與原本相同，新舊模型可用同一份 test 比較。
+#                      前提是推論時先做相關性過濾，BERT 不再學「這則不是在講這個型號」。
+#   --overall FILE     合併 annotate_overall.py 補標的「總體」面向，相關評論多展開一筆「型號 總體」。
+#                      高風險判定只用 p3 的證據，跟原本一致。
+#
 # 推論時長文的合併規則（訓練資料是照這個規則準備的）：
 #   每個視窗各自預測；只要有視窗判出正面/負面，就採用其中信心最高的那個，全部都是未提及才算未提及。
 #
@@ -103,7 +110,10 @@ def locate(evidence: str, wins: list, title: str = ""):
     """
     證據落在第幾個視窗；逐字找不到時改用片段比對（證據常被「…」拼接或加引號）。找不到回傳 None。
     p3 允許從標題取證據，而標題每個視窗都看得到，所以證據在標題時配第一個視窗。
+    沒有證據（例如沿用相關性階段整則評論 label 的總體面向）就無從判斷，回傳 None。
     """
+    if not evidence:
+        return None
     if title and evidence in title:
         return 0
     for i, w in enumerate(wins):
@@ -207,8 +217,12 @@ def main(args):
     # 步驟 1：不相關的資料
     kept, held_baha = [], []
     n_zeroed = 0
+    n_dropped = 0
     for r in rows:
         r["aspects_p3"] = r["aspects"]
+        if args.drop_irrelevant and not r["orig_relevant"]:
+            n_dropped += 1
+            continue
         if not r["orig_relevant"] and r["evidence"]:
             if r["source"] == "baha":
                 held_baha.append(dict(r, held_reason="baha_irrelevant"))
@@ -223,6 +237,23 @@ def main(args):
     risk = find_high_risk(kept)
     held_risk = [dict(kept[i], held_reason=why) for i, why in sorted(risk.items())]
     kept = [r for i, r in enumerate(kept) if i not in risk]
+
+    # 合併「總體」面向（在高風險判定之後，判定只看 p3 的證據）
+    overall_stats = Counter()
+    if args.overall:
+        overall = {x["_index"]: x for x in load_jsonl(args.overall)}
+        for r in kept:
+            if not r["orig_relevant"]:
+                r["aspects"] = dict(r["aspects"], 總體=UNMENTIONED)
+                overall_stats["不相關→未提及"] += 1
+            elif r["rid"] in overall:
+                o = overall[r["rid"]]
+                r["aspects"] = dict(r["aspects"], 總體=o["總體"])
+                if o["總體"] != UNMENTIONED:
+                    r["evidence"] = dict(r["evidence"], 總體=o.get("evidence", ""))
+                overall_stats[o["總體"]] += 1
+            else:
+                overall_stats["缺標（不產生總體樣本）"] += 1
 
     # 步驟 3：展開成 (型號, 面向, 視窗) 一筆
     stats = Counter()
@@ -256,7 +287,7 @@ def main(args):
                     "aspect": aspect,
                     "orig_relevant": r["orig_relevant"],
                     # 困難負例：不相關評論裡 p3 原本標了正負、被改成未提及的那一格
-                    "hard_negative": label == UNMENTIONED and r["aspects_p3"][aspect] != UNMENTIONED,
+                    "hard_negative": label == UNMENTIONED and r["aspects_p3"].get(aspect, UNMENTIONED) != UNMENTIONED,
                     "rid": r["rid"],
                     "window": wi,
                     "n_windows": len(wins),
@@ -297,6 +328,8 @@ def main(args):
     # ── 報告 ──
     print("\n=== 評論層級（一筆 = 一則評論 × 一個型號）===")
     print(f"  原始                              {len(rows):>7}")
+    if args.drop_irrelevant:
+        print(f"  不相關評論 → 不放進訓練           {n_dropped:>7}")
     print(f"  巴哈 不相關但有面向 → 暫不訓練     {len(held_baha):>7}")
     print(f"  高風險 → 暫不訓練                 {len(held_risk):>7}  {dict(Counter(r['held_reason'] for r in held_risk))}")
     print(f"  送進訓練流程                      {len(kept):>7}")
@@ -305,6 +338,8 @@ def main(args):
         print(f"    {src:<5}{'相關' if rel else '不相關'}  {n:>7}")
     print(f"  討論串數 {dict(Counter(split[g] for g in set(groups)))}")
     print(f"  評論數   {dict(Counter(r['split'] for r in kept))}")
+    if args.overall:
+        print(f"  總體面向 {dict(overall_stats)}")
 
     print("\n=== 樣本層級（一筆 = 一則評論 × 一個型號 × 一個面向 × 一個視窗）===")
     print(f"  train 減量前 {dict(train_before)}")
@@ -330,4 +365,6 @@ if __name__ == "__main__":
     ap.add_argument("--val-ratio", type=float, default=0.1)
     ap.add_argument("--test-ratio", type=float, default=0.1)
     ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument("--drop-irrelevant", action="store_true", help="不相關評論不放進訓練")
+    ap.add_argument("--overall", default=None, help="annotate_overall.py 的輸出，合併成「總體」面向")
     main(ap.parse_args())
