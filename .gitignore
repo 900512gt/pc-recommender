@@ -180,5 +180,6 @@ bert_train/*.pt
 # build_aspect_dataset.py 的輸出（可重新產生）與 train_aspect.py 存的模型
 bert_train/aspect_dataset/
 bert_train/aspect_dataset_v2/
+bert_train/aspect_dataset_v3/
 bert_train/bert_*_aspect/
 bert_train/runs/

@@ -26,6 +26,7 @@ train_aspect.py — fine-tune BERT 做「型號 × 面向」情感分類
 
 分項成績依來源、類別、「類別 面向」列出，各項都有正面／負面的 precision 與 recall。
 資料含「總體」面向時，另外印一行「不含總體」的整體分數，和舊模型比較時看這一行。
+資料夾裡有 test_no_opinion.jsonl、test_irrelevant.jsonl（答案全是未提及）時也會一起評估，改印誤判率。
 """
 
 import json
@@ -170,6 +171,64 @@ def report(name, data, logits, labels, by=("source", "category", "category_aspec
     return m
 
 
+# 答案全是「未提及」的獨立測試集（build_aspect_dataset.py 另存的）：沒有正負評的答案，
+# precision / recall 無從算起，改看誤判率 = 判成正面或負面的比例，越低越好
+ALL_UNMENTIONED_SETS = ("test_no_opinion", "test_irrelevant")
+
+
+def report_false_positive(name, data, logits, labels):
+    preds = logits.argmax(axis=1)
+    assert (labels == 0).all(), f"{name} 應該全部是未提及"
+
+    def rate(idx):
+        n = int(idx.sum())
+        if n == 0:
+            return {"n": 0}
+        p = preds[idx]
+        return {"n": n, "fp_rate": float((p != 0).mean()), "as_pos": float((p == 1).mean()), "as_neg": float((p == 2).mean())}
+
+    def line(label, r):
+        return (f"    {label:<22} n={r['n']:>6}  誤判率 {r['fp_rate']:.1%}（判成正面 {r['as_pos']:.1%}、負面 {r['as_neg']:.1%}）"
+                if r["n"] else f"    {label:<22} n=     0")
+
+    everything = np.ones(len(data), dtype=bool)
+    m = rate(everything)
+    print(f"\n=== {name}（答案全是未提及，看誤判率）===")
+    print(line("全部", m))
+    if any(d.get("aspect") == "總體" for d in data):
+        m["excluding_overall"] = rate(np.array([d.get("aspect") != "總體" for d in data]))
+        print(line("不含總體", m["excluding_overall"]))
+    for key in ("source", "p3_had_opinion", "category"):
+        if not any(key in d for d in data):
+            continue
+        print(f"  依 {key}：")
+        m[f"by_{key}"] = {}
+        for val in sorted({d.get(key) for d in data}, key=str):
+            r = rate(np.array([d.get(key) == val for d in data]))
+            m[f"by_{key}"][str(val)] = r
+            print(line(str(val), r))
+    # 誤判最多的面向（只列樣本數夠的）
+    per = {}
+    for val in {group_value(d, "category_aspect") for d in data}:
+        r = rate(np.array([group_value(d, "category_aspect") == val for d in data]))
+        if r["n"] >= 50:
+            per[val] = r
+    m["by_category_aspect"] = per
+    print("  誤判率最高的面向（樣本數 ≥ 50）：" + ("" if per else "樣本數不足，不列"))
+    for val, r in sorted(per.items(), key=lambda kv: -kv[1]["fp_rate"])[:8]:
+        print(line(val, r))
+    return m
+
+
+def evaluate_set(name, data, model, loader, device):
+    """依測試集種類選評分方式"""
+    logits, labels = predict(model, loader(data), device)
+    if name in ALL_UNMENTIONED_SETS:
+        return report_false_positive(name, data, logits, labels)
+    by = ("held_reason", "source", "category") if name == "test_hard" else ("source", "category", "category_aspect")
+    return report(name, data, logits, labels, by=by)
+
+
 # ── 訓練 ──
 def train(args):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -280,9 +339,14 @@ def train(args):
         hard_m = report("test_hard（參考用）", hard_data, *predict(model, loader(hard_data), device),
                         by=("held_reason", "source", "category"))
 
+    extra = {}
+    for name in ALL_UNMENTIONED_SETS:
+        if (data_dir / f"{name}.jsonl").exists():
+            extra[name] = evaluate_set(name, load_jsonl(data_dir / f"{name}.jsonl", args.sample), model, loader, device)
+
     with open(save_dir / "result.json", "w", encoding="utf-8") as f:
         json.dump({"model_name": model_name, "args": vars(args), "val_history": history,
-                   "val": val_m, "test": test_m, "test_hard": hard_m}, f, ensure_ascii=False, indent=2)
+                   "val": val_m, "test": test_m, "test_hard": hard_m, **extra}, f, ensure_ascii=False, indent=2)
     print(f"\n✓ 模型與結果已存: {save_dir}")
 
 
@@ -306,13 +370,12 @@ def evaluate(args):
         return DataLoader(AspectDataset(data, tokenizer, args.max_len), batch_size=args.batch, collate_fn=collate)
 
     out = {"model_dir": str(model_dir), "data_dir": str(data_dir), "args": vars(args)}
-    for name in ("val", "test", "test_hard"):
+    for name in ("val", "test", "test_hard") + ALL_UNMENTIONED_SETS:
         path = data_dir / f"{name}.jsonl"
         if not path.exists():
             continue
-        data = load_jsonl(path, args.sample)
-        by = ("held_reason", "source", "category") if name == "test_hard" else ("source", "category", "category_aspect")
-        out[name] = report(f"{name}（{model_dir.name} × {data_dir.name}）", data, *predict(model, loader(data), device), by=by)
+        print(f"\n##### {name}（{model_dir.name} × {data_dir.name}）")
+        out[name] = evaluate_set(name, load_jsonl(path, args.sample), model, loader, device)
     dest = model_dir / f"eval_{data_dir.name}.json"
     with open(dest, "w", encoding="utf-8") as f:
         json.dump(out, f, ensure_ascii=False, indent=2)

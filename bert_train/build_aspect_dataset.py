@@ -23,6 +23,10 @@
 #                      前提是推論時先做相關性過濾，BERT 不再學「這則不是在講這個型號」。
 #   --overall FILE     合併 annotate_overall.py 補標的「總體」面向，相關評論多展開一筆「型號 總體」。
 #                      高風險判定只用 p3 的證據，跟原本一致。
+#   --drop-no-opinion  相關評論裡所有面向（含總體）都未提及的也不放進訓練：只訓練「至少一個面向有評價」的評論
+#                      （教授的意思：相關評論一定有評價，未提及由同一則評論的其他面向自然產生）。
+#   上面兩個參數拿掉的評論，落在 test 討論串的會各自另存 test_irrelevant.jsonl、test_no_opinion.jsonl，
+#   答案全是未提及，用來看模型遇到這兩種評論時的誤判率。
 #
 # 推論時長文的合併規則（訓練資料是照這個規則準備的）：
 #   每個視窗各自預測；只要有視窗判出正面/負面，就採用其中信心最高的那個，全部都是未提及才算未提及。
@@ -217,11 +221,11 @@ def main(args):
     # 步驟 1：不相關的資料
     kept, held_baha = [], []
     n_zeroed = 0
-    n_dropped = 0
+    dropped_irrelevant = []   # --drop-irrelevant 拿掉的；落在 test 的另存 test_irrelevant.jsonl
     for r in rows:
         r["aspects_p3"] = r["aspects"]
         if args.drop_irrelevant and not r["orig_relevant"]:
-            n_dropped += 1
+            dropped_irrelevant.append(r)
             continue
         if not r["orig_relevant"] and r["evidence"]:
             if r["source"] == "baha":
@@ -254,6 +258,14 @@ def main(args):
                 overall_stats[o["總體"]] += 1
             else:
                 overall_stats["缺標（不產生總體樣本）"] += 1
+
+    # 相關但所有面向（含總體）都未提及的評論：判為相關卻沒有任何正負評，多半是提問、資訊，
+    # 或相關性判斷本身有誤（盲測時看到不少）。拿掉後的效果見 --drop-no-opinion
+    no_opinion = []   # --drop-no-opinion 拿掉的；落在 test 的另存 test_no_opinion.jsonl
+    if args.drop_no_opinion:
+        has_opinion = lambda r: not r["orig_relevant"] or any(v != UNMENTIONED for v in r["aspects"].values())
+        no_opinion = [r for r in kept if not has_opinion(r)]
+        kept = [r for r in kept if has_opinion(r)]
 
     # 步驟 3：展開成 (型號, 面向, 視窗) 一筆
     stats = Counter()
@@ -305,6 +317,29 @@ def main(args):
         if r["split"] == "test":
             test_hard.extend(dict(e, held_reason=r["held_reason"]) for e in expand(r))
 
+    # 被拿掉、落在 test 討論串的評論，各自另存一份獨立的測試集（答案全部是未提及）：
+    #   test_no_opinion.jsonl  相關但所有面向（含總體）都未提及 → 看模型會不會把提問、閒聊判成有評價
+    #   test_irrelevant.jsonl  不相關評論 → 看相關性過濾漏掉時，模型會不會誤判
+    # 兩份都沒有正負評的答案，評估看「誤判率」（判成正面或負面的比例），不看 precision / recall。
+    # p3_had_opinion：p3 當初有沒有替這則標過正負評（不相關卻被標了評價，答案「未提及」本身較可疑）
+    def as_unmentioned(r):
+        aspects = {a: UNMENTIONED for a in r["aspects"]}
+        if args.overall:
+            aspects["總體"] = UNMENTIONED
+        return dict(r, aspects=aspects, evidence={})
+
+    def extra_test(rs, subset):
+        out_rows = []
+        for r in rs:
+            if r["split"] != "test":
+                continue
+            had = any(v != UNMENTIONED for v in r["aspects_p3"].values())
+            out_rows.extend(dict(e, subset=subset, p3_had_opinion=had) for e in expand(as_unmentioned(r)))
+        return out_rows
+
+    test_no_opinion = extra_test(no_opinion, "no_opinion")
+    test_irrelevant = extra_test(dropped_irrelevant, "irrelevant")
+
     # 步驟 5：只在 train 對「未提及」減量
     train_before = Counter(e["label"] for e in examples["train"])
     if args.neg_ratio > 0:
@@ -324,14 +359,20 @@ def main(args):
     write_jsonl(out / "test_hard.jsonl", test_hard)
     write_jsonl(out / "held_out_baha_irrelevant.jsonl", held_baha)
     write_jsonl(out / "held_out_high_risk.jsonl", held_risk)
+    if args.drop_no_opinion:
+        write_jsonl(out / "test_no_opinion.jsonl", test_no_opinion)
+    if args.drop_irrelevant:
+        write_jsonl(out / "test_irrelevant.jsonl", test_irrelevant)
 
     # ── 報告 ──
     print("\n=== 評論層級（一筆 = 一則評論 × 一個型號）===")
     print(f"  原始                              {len(rows):>7}")
     if args.drop_irrelevant:
-        print(f"  不相關評論 → 不放進訓練           {n_dropped:>7}")
+        print(f"  不相關評論 → 不放進訓練           {len(dropped_irrelevant):>7}")
     print(f"  巴哈 不相關但有面向 → 暫不訓練     {len(held_baha):>7}")
     print(f"  高風險 → 暫不訓練                 {len(held_risk):>7}  {dict(Counter(r['held_reason'] for r in held_risk))}")
+    if args.drop_no_opinion:
+        print(f"  相關但全部面向未提及 → 不放進訓練 {len(no_opinion):>7}")
     print(f"  送進訓練流程                      {len(kept):>7}")
     print(f"    其中 PTT 不相關改成全未提及      {n_zeroed:>7}")
     for (src, rel), n in sorted(Counter((r['source'], r['orig_relevant']) for r in kept).items()):
@@ -348,6 +389,11 @@ def main(args):
         print(f"  {name:<9} {len(exs):>7}  " + "  ".join(f"{k} {c[k]}" for k in [UNMENTIONED, "正面", "負面"])
               + f"  （困難負例 {sum(e['hard_negative'] for e in exs)}）")
     print(f"  test_hard 組成 {dict(Counter(e['held_reason'] for e in test_hard))}")
+    for name, exs, on in (("test_no_opinion", test_no_opinion, args.drop_no_opinion),
+                          ("test_irrelevant", test_irrelevant, args.drop_irrelevant)):
+        if on:
+            print(f"  {name:<15} {len(exs):>7}  全部未提及（評論 {len({e['rid'] for e in exs})} 則，"
+                  f"其中 p3 曾標正負評 {len({e['rid'] for e in exs if e['p3_had_opinion']})} 則）")
 
     print(f"\n內文超過 {args.max_chars} 字、切視窗處理的評論：{kept_stats['long']}")
     print(f"  這些評論裡有標註的面向 {kept_stats['long_labeled']} 個，"
@@ -367,4 +413,6 @@ if __name__ == "__main__":
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--drop-irrelevant", action="store_true", help="不相關評論不放進訓練")
     ap.add_argument("--overall", default=None, help="annotate_overall.py 的輸出，合併成「總體」面向")
+    ap.add_argument("--drop-no-opinion", action="store_true",
+                    help="相關評論裡所有面向（含總體）都是未提及的不放進訓練")
     main(ap.parse_args())
