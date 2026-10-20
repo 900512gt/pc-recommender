@@ -17,6 +17,15 @@ train_aspect.py — fine-tune BERT 做「型號 × 面向」情感分類
 
   # 正式訓練
   python train_aspect.py --model ckip --epochs 4
+
+  # 新資料（拿掉不相關評論＋總體面向），每個實驗存到不同資料夾，避免互相覆蓋
+  python train_aspect.py --model ckip --epochs 4 --data-dir aspect_dataset_v2 --save-dir runs/v2_r3
+
+  # 舊模型在新資料上重新評估（不訓練），和新模型用同一份 test 比較；結果存成 <模型資料夾>/eval_aspect_dataset_v2.json
+  python train_aspect.py --eval-only --model-dir bert_ckip_aspect --data-dir aspect_dataset_v2
+
+分項成績依來源、類別、「類別 面向」列出，各項都有正面／負面的 precision 與 recall。
+資料含「總體」面向時，另外印一行「不含總體」的整體分數，和舊模型比較時看這一行。
 """
 
 import json
@@ -33,7 +42,7 @@ from transformers import (
     BertTokenizerFast, BertForSequenceClassification,
     DataCollatorWithPadding, get_linear_schedule_with_warmup,
 )
-from sklearn.metrics import f1_score, accuracy_score, classification_report
+from sklearn.metrics import f1_score, accuracy_score, classification_report, precision_recall_fscore_support
 
 # ── 設定 ──
 LABEL2ID = {"未提及": 0, "正面": 1, "負面": 2}
@@ -97,13 +106,20 @@ def predict(model, dl, device):
 def metrics(logits, labels):
     preds = logits.argmax(axis=1)
     has = labels != 0
-    return {
+    m = {
         "acc": accuracy_score(labels, preds),
         "macro_f1": f1_score(labels, preds, average="macro", zero_division=0),
         # 只看有標註的樣本、只比正面/負面哪個分數高。
         # 對照基準：完全不讀文章、只看「型號 面向」去猜是 0.68，要明顯高過它才算有在讀內文。
         "polarity_acc": accuracy_score(labels[has], logits[has][:, 1:].argmax(axis=1) + 1) if has.any() else 0.0,
     }
+    # 正面、負面各自的 precision / recall：目前主要問題是 precision 低（太常判成有評價），分項也要看得到。
+    # 沒有這一類的答案時 recall 無從算起、沒有這一類的預測時 precision 無從算起，記成 None（印成「-」）
+    p, r, _, _ = precision_recall_fscore_support(labels, preds, labels=[1, 2], zero_division=0)
+    for k, c, pi, ri in (("pos", 1, p[0], r[0]), ("neg", 2, p[1], r[1])):
+        m[f"{k}_p"] = float(pi) if (preds == c).any() else None
+        m[f"{k}_r"] = float(ri) if (labels == c).any() else None
+    return m
 
 
 def distribution(ids):
@@ -115,7 +131,20 @@ def fmt_dist(d):
     return "、".join(f"{k} {v:.1%}" for k, v in d.items())
 
 
-def report(name, data, logits, labels, by=("source", "category")):
+def fmt_sub(m):
+    f = lambda v: "  - " if v is None else f"{v:.2f}"
+    return (f"Macro-F1 {m['macro_f1']:.3f}  正 P/R {f(m['pos_p'])}/{f(m['pos_r'])}  "
+            f"負 P/R {f(m['neg_p'])}/{f(m['neg_r'])}  正負向正確率 {m['polarity_acc']:.3f}")
+
+
+def group_value(d, key):
+    """分項的鍵；category_aspect 是「類別 面向」，同名面向（穩定、噪音…）在不同類別要分開看"""
+    if key == "category_aspect":
+        return f"{d.get('category')} {d.get('aspect')}"
+    return d.get(key)
+
+
+def report(name, data, logits, labels, by=("source", "category", "category_aspect")):
     """印出整體與分項分數，並回傳同一份內容（存進 result.json 用）"""
     m = metrics(logits, labels)
     print(f"\n=== {name} ===")
@@ -124,14 +153,20 @@ def report(name, data, logits, labels, by=("source", "category")):
         labels, logits.argmax(axis=1), labels=[0, 1, 2],
         target_names=[ID2LABEL[i] for i in range(3)], digits=3, zero_division=0,
     ))
+    # 「總體」面向是 2026-10 才加的，舊資料、舊模型都沒有。和舊模型比較要用不含總體的分數，
+    # 總體本身的成績在下面「依 category_aspect」裡單獨看
+    if any(d.get("aspect") == "總體" for d in data):
+        idx = np.array([d.get("aspect") != "總體" for d in data])
+        m["excluding_overall"] = dict(metrics(logits[idx], labels[idx]), n=int(idx.sum()))
+        print(f"  不含總體 n={m['excluding_overall']['n']:>6}  {fmt_sub(m['excluding_overall'])}\n")
     for key in by:
         print(f"  依 {key}：")
         m[f"by_{key}"] = {}
-        for val in sorted({d[key] for d in data}):
-            idx = np.array([d[key] == val for d in data])
+        for val in sorted({group_value(d, key) for d in data}, key=str):
+            idx = np.array([group_value(d, key) == val for d in data])
             sub = dict(metrics(logits[idx], labels[idx]), n=int(idx.sum()))
             m[f"by_{key}"][val] = sub
-            print(f"    {val:<22} n={sub['n']:>6}  Macro-F1 {sub['macro_f1']:.3f}  正負向正確率 {sub['polarity_acc']:.3f}")
+            print(f"    {str(val):<22} n={sub['n']:>6}  {fmt_sub(sub)}")
     return m
 
 
@@ -182,7 +217,10 @@ def train(args):
     )
     scaler = torch.cuda.amp.GradScaler(enabled=device.type == "cuda")
 
-    save_dir = HERE / f"bert_{args.model}_aspect"
+    save_dir = Path(args.save_dir) if args.save_dir else HERE / f"bert_{args.model}_aspect"
+    if (save_dir / "result.json").exists() and not args.overwrite:
+        raise SystemExit(f"✗ {save_dir} 已經有訓練好的模型，繼續會覆蓋掉。\n"
+                         f"  請用 --save-dir 指定新的資料夾；確定要覆蓋就加 --overwrite。")
     best_f1 = -1.0
     history = []  # 每個 epoch 的 val 分數
     for epoch in range(args.epochs):
@@ -248,6 +286,39 @@ def train(args):
     print(f"\n✓ 模型與結果已存: {save_dir}")
 
 
+# ── 只評估 ──
+def evaluate(args):
+    """
+    載入已訓練好的模型，在指定資料上評估，不訓練。
+    用途：舊模型在新資料的 test 上重新評估，和新模型用同一份 test 比較。
+    結果另存 eval_<資料夾名>.json，不會動到模型資料夾裡原本的 result.json。
+    """
+    if not args.model_dir:
+        raise SystemExit("✗ --eval-only 需要用 --model-dir 指定模型資料夾")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"裝置: {device}")
+    model_dir, data_dir = Path(args.model_dir), Path(args.data_dir)
+    tokenizer = BertTokenizerFast.from_pretrained(model_dir)
+    model = BertForSequenceClassification.from_pretrained(model_dir).to(device)
+    collate = DataCollatorWithPadding(tokenizer)
+
+    def loader(data):
+        return DataLoader(AspectDataset(data, tokenizer, args.max_len), batch_size=args.batch, collate_fn=collate)
+
+    out = {"model_dir": str(model_dir), "data_dir": str(data_dir), "args": vars(args)}
+    for name in ("val", "test", "test_hard"):
+        path = data_dir / f"{name}.jsonl"
+        if not path.exists():
+            continue
+        data = load_jsonl(path, args.sample)
+        by = ("held_reason", "source", "category") if name == "test_hard" else ("source", "category", "category_aspect")
+        out[name] = report(f"{name}（{model_dir.name} × {data_dir.name}）", data, *predict(model, loader(data), device), by=by)
+    dest = model_dir / f"eval_{data_dir.name}.json"
+    with open(dest, "w", encoding="utf-8") as f:
+        json.dump(out, f, ensure_ascii=False, indent=2)
+    print(f"\n✓ 評估結果已存: {dest}")
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--model", choices=["ckip", "google", "hfl"], default="ckip")
@@ -258,5 +329,9 @@ if __name__ == "__main__":
     ap.add_argument("--lr", type=float, default=2e-5)
     ap.add_argument("--max-len", type=int, default=416, help="資料最長約 412 個 token")
     ap.add_argument("--class-weight", action="store_true", help="loss 加上類別權重（預設不加）")
+    ap.add_argument("--save-dir", default=None, help="模型與 result.json 存放處（預設 bert_<model>_aspect/）")
+    ap.add_argument("--overwrite", action="store_true", help="允許覆蓋 --save-dir 裡已有的模型")
+    ap.add_argument("--eval-only", action="store_true", help="不訓練，只用 --model-dir 的模型評估 --data-dir")
+    ap.add_argument("--model-dir", default=None, help="--eval-only 時要評估的模型資料夾")
     args = ap.parse_args()
-    train(args)
+    evaluate(args) if args.eval_only else train(args)

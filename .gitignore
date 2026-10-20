@@ -181,3 +181,4 @@ bert_train/*.pt
 bert_train/aspect_dataset/
 bert_train/aspect_dataset_v2/
 bert_train/bert_*_aspect/
+bert_train/runs/
