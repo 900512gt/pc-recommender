@@ -41,7 +41,7 @@ import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 from transformers import (
     BertTokenizerFast, BertForSequenceClassification,
-    DataCollatorWithPadding, get_linear_schedule_with_warmup,
+    DataCollatorWithPadding, get_linear_schedule_with_warmup, set_seed,
 )
 from sklearn.metrics import f1_score, accuracy_score, classification_report, precision_recall_fscore_support
 
@@ -231,6 +231,9 @@ def evaluate_set(name, data, model, loader, device):
 
 # ── 訓練 ──
 def train(args):
+    # 分類層初始化、dropout、train 的洗牌順序都會隨機，不固定的話兩次實驗的差距
+    # 分不出是資料設定造成的還是運氣（例如 3:1 和不減量只差 1.3% 的未提及）
+    set_seed(args.seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"裝置: {device}")
     if device.type == "cuda":
@@ -392,6 +395,7 @@ if __name__ == "__main__":
     ap.add_argument("--lr", type=float, default=2e-5)
     ap.add_argument("--max-len", type=int, default=416, help="資料最長約 412 個 token")
     ap.add_argument("--class-weight", action="store_true", help="loss 加上類別權重（預設不加）")
+    ap.add_argument("--seed", type=int, default=42, help="固定隨機種子，比較不同資料設定時兩邊要用同一個")
     ap.add_argument("--save-dir", default=None, help="模型與 result.json 存放處（預設 bert_<model>_aspect/）")
     ap.add_argument("--overwrite", action="store_true", help="允許覆蓋 --save-dir 裡已有的模型")
     ap.add_argument("--eval-only", action="store_true", help="不訓練，只用 --model-dir 的模型評估 --data-dir")
