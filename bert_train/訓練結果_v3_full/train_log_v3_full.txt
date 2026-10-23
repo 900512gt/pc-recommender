@@ -1,0 +1,456 @@
+裝置: cuda
+GPU: NVIDIA GeForce RTX 4080
+模型: ckiplab/bert-base-chinese
+訓練: 121882  驗證: 12237  測試: 14855
+訓練集標籤: {'未提及': 92990, '負面': 13415, '正面': 15477}
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights:   0%|          | 0/197 [00:00<?, ?it/s]Loading weights: 100%|██████████| 197/197 [00:00<00:00, 43692.98it/s]
+[transformers] [1mBertForSequenceClassification LOAD REPORT[0m from: ckiplab/bert-base-chinese
+Key                                        | Status     | 
+-------------------------------------------+------------+-
+cls.predictions.transform.dense.bias       | UNEXPECTED | 
+cls.predictions.transform.LayerNorm.weight | UNEXPECTED | 
+cls.predictions.bias                       | UNEXPECTED | 
+cls.predictions.transform.dense.weight     | UNEXPECTED | 
+cls.predictions.decoder.weight             | UNEXPECTED | 
+cls.predictions.decoder.bias               | UNEXPECTED | 
+cls.predictions.transform.LayerNorm.bias   | UNEXPECTED | 
+classifier.bias                            | MISSING    | 
+bert.pooler.dense.bias                     | MISSING    | 
+classifier.weight                          | MISSING    | 
+bert.pooler.dense.weight                   | MISSING    | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+- MISSING:	those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.
+D:\資料存放區\專題\bert_train\train_aspect.py:280: FutureWarning: `torch.cuda.amp.GradScaler(args...)` is deprecated. Please use `torch.amp.GradScaler('cuda', args...)` instead.
+  scaler = torch.cuda.amp.GradScaler(enabled=device.type == "cuda")
+  Epoch 1 | Step 100/3809 | Loss 0.6873
+  Epoch 1 | Step 200/3809 | Loss 0.8026
+  Epoch 1 | Step 300/3809 | Loss 0.5854
+  Epoch 1 | Step 400/3809 | Loss 0.5234
+  Epoch 1 | Step 500/3809 | Loss 0.3146
+  Epoch 1 | Step 600/3809 | Loss 0.5351
+  Epoch 1 | Step 700/3809 | Loss 0.5505
+  Epoch 1 | Step 800/3809 | Loss 0.4160
+  Epoch 1 | Step 900/3809 | Loss 0.3373
+  Epoch 1 | Step 1000/3809 | Loss 0.4801
+  Epoch 1 | Step 1100/3809 | Loss 0.4302
+  Epoch 1 | Step 1200/3809 | Loss 0.3585
+  Epoch 1 | Step 1300/3809 | Loss 0.3798
+  Epoch 1 | Step 1400/3809 | Loss 0.4916
+  Epoch 1 | Step 1500/3809 | Loss 0.2992
+  Epoch 1 | Step 1600/3809 | Loss 0.1210
+  Epoch 1 | Step 1700/3809 | Loss 0.3382
+  Epoch 1 | Step 1800/3809 | Loss 0.3203
+  Epoch 1 | Step 1900/3809 | Loss 0.1317
+  Epoch 1 | Step 2000/3809 | Loss 0.2370
+  Epoch 1 | Step 2100/3809 | Loss 0.6042
+  Epoch 1 | Step 2200/3809 | Loss 0.3091
+  Epoch 1 | Step 2300/3809 | Loss 0.4445
+  Epoch 1 | Step 2400/3809 | Loss 0.4257
+  Epoch 1 | Step 2500/3809 | Loss 0.2516
+  Epoch 1 | Step 2600/3809 | Loss 0.4792
+  Epoch 1 | Step 2700/3809 | Loss 0.2018
+  Epoch 1 | Step 2800/3809 | Loss 0.2177
+  Epoch 1 | Step 2900/3809 | Loss 0.3161
+  Epoch 1 | Step 3000/3809 | Loss 0.3106
+  Epoch 1 | Step 3100/3809 | Loss 0.2102
+  Epoch 1 | Step 3200/3809 | Loss 0.3006
+  Epoch 1 | Step 3300/3809 | Loss 0.2351
+  Epoch 1 | Step 3400/3809 | Loss 0.2815
+  Epoch 1 | Step 3500/3809 | Loss 0.2758
+  Epoch 1 | Step 3600/3809 | Loss 0.2179
+  Epoch 1 | Step 3700/3809 | Loss 0.4085
+  Epoch 1 | Step 3800/3809 | Loss 0.2615
+Epoch 1 平均 Loss: 0.3836
+  val: Acc 0.869  Macro-F1 0.753  正負向正確率 0.823
+    預測分布：未提及 75.5%、正面 10.1%、負面 14.5%
+    實際分布：未提及 76.3%、正面 13.3%、負面 10.4%
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:00<00:00,  2.60it/s]Writing model shards: 100%|██████████| 1/1 [00:00<00:00,  2.60it/s]
+  ✓ 目前最佳，已存: runs\v3_full
+  Epoch 2 | Step 100/3809 | Loss 0.1650
+  Epoch 2 | Step 200/3809 | Loss 0.0953
+  Epoch 2 | Step 300/3809 | Loss 0.1437
+  Epoch 2 | Step 400/3809 | Loss 0.3294
+  Epoch 2 | Step 500/3809 | Loss 0.2042
+  Epoch 2 | Step 600/3809 | Loss 0.4684
+  Epoch 2 | Step 700/3809 | Loss 0.4676
+  Epoch 2 | Step 800/3809 | Loss 0.3297
+  Epoch 2 | Step 900/3809 | Loss 0.1437
+  Epoch 2 | Step 1000/3809 | Loss 0.1060
+  Epoch 2 | Step 1100/3809 | Loss 0.3577
+  Epoch 2 | Step 1200/3809 | Loss 0.3995
+  Epoch 2 | Step 1300/3809 | Loss 0.1994
+  Epoch 2 | Step 1400/3809 | Loss 0.2085
+  Epoch 2 | Step 1500/3809 | Loss 0.1735
+  Epoch 2 | Step 1600/3809 | Loss 0.0616
+  Epoch 2 | Step 1700/3809 | Loss 0.1856
+  Epoch 2 | Step 1800/3809 | Loss 0.2169
+  Epoch 2 | Step 1900/3809 | Loss 0.1919
+  Epoch 2 | Step 2000/3809 | Loss 0.2483
+  Epoch 2 | Step 2100/3809 | Loss 0.1864
+  Epoch 2 | Step 2200/3809 | Loss 0.1998
+  Epoch 2 | Step 2300/3809 | Loss 0.1492
+  Epoch 2 | Step 2400/3809 | Loss 0.3862
+  Epoch 2 | Step 2500/3809 | Loss 0.0857
+  Epoch 2 | Step 2600/3809 | Loss 0.2747
+  Epoch 2 | Step 2700/3809 | Loss 0.2879
+  Epoch 2 | Step 2800/3809 | Loss 0.1442
+  Epoch 2 | Step 2900/3809 | Loss 0.1585
+  Epoch 2 | Step 3000/3809 | Loss 0.4639
+  Epoch 2 | Step 3100/3809 | Loss 0.1847
+  Epoch 2 | Step 3200/3809 | Loss 0.0875
+  Epoch 2 | Step 3300/3809 | Loss 0.0905
+  Epoch 2 | Step 3400/3809 | Loss 0.2103
+  Epoch 2 | Step 3500/3809 | Loss 0.2569
+  Epoch 2 | Step 3600/3809 | Loss 0.3722
+  Epoch 2 | Step 3700/3809 | Loss 0.6512
+  Epoch 2 | Step 3800/3809 | Loss 0.3998
+Epoch 2 平均 Loss: 0.2422
+  val: Acc 0.887  Macro-F1 0.793  正負向正確率 0.869
+    預測分布：未提及 75.5%、正面 13.6%、負面 10.9%
+    實際分布：未提及 76.3%、正面 13.3%、負面 10.4%
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:00<00:00,  2.85it/s]Writing model shards: 100%|██████████| 1/1 [00:00<00:00,  2.85it/s]
+  ✓ 目前最佳，已存: runs\v3_full
+  Epoch 3 | Step 100/3809 | Loss 0.1968
+  Epoch 3 | Step 200/3809 | Loss 0.0696
+  Epoch 3 | Step 300/3809 | Loss 0.2345
+  Epoch 3 | Step 400/3809 | Loss 0.0932
+  Epoch 3 | Step 500/3809 | Loss 0.1467
+  Epoch 3 | Step 600/3809 | Loss 0.0614
+  Epoch 3 | Step 700/3809 | Loss 0.1280
+  Epoch 3 | Step 800/3809 | Loss 0.1169
+  Epoch 3 | Step 900/3809 | Loss 0.1982
+  Epoch 3 | Step 1000/3809 | Loss 0.1989
+  Epoch 3 | Step 1100/3809 | Loss 0.1952
+  Epoch 3 | Step 1200/3809 | Loss 0.1305
+  Epoch 3 | Step 1300/3809 | Loss 0.4416
+  Epoch 3 | Step 1400/3809 | Loss 0.0527
+  Epoch 3 | Step 1500/3809 | Loss 0.0395
+  Epoch 3 | Step 1600/3809 | Loss 0.1528
+  Epoch 3 | Step 1700/3809 | Loss 0.2117
+  Epoch 3 | Step 1800/3809 | Loss 0.1791
+  Epoch 3 | Step 1900/3809 | Loss 0.0418
+  Epoch 3 | Step 2000/3809 | Loss 0.1433
+  Epoch 3 | Step 2100/3809 | Loss 0.1988
+  Epoch 3 | Step 2200/3809 | Loss 0.0260
+  Epoch 3 | Step 2300/3809 | Loss 0.0273
+  Epoch 3 | Step 2400/3809 | Loss 0.2723
+  Epoch 3 | Step 2500/3809 | Loss 0.0336
+  Epoch 3 | Step 2600/3809 | Loss 0.1457
+  Epoch 3 | Step 2700/3809 | Loss 0.1605
+  Epoch 3 | Step 2800/3809 | Loss 0.3089
+  Epoch 3 | Step 2900/3809 | Loss 0.1096
+  Epoch 3 | Step 3000/3809 | Loss 0.2081
+  Epoch 3 | Step 3100/3809 | Loss 0.1536
+  Epoch 3 | Step 3200/3809 | Loss 0.4049
+  Epoch 3 | Step 3300/3809 | Loss 0.1739
+  Epoch 3 | Step 3400/3809 | Loss 0.1957
+  Epoch 3 | Step 3500/3809 | Loss 0.1287
+  Epoch 3 | Step 3600/3809 | Loss 0.1329
+  Epoch 3 | Step 3700/3809 | Loss 0.1786
+  Epoch 3 | Step 3800/3809 | Loss 0.3336
+Epoch 3 平均 Loss: 0.1774
+  val: Acc 0.893  Macro-F1 0.799  正負向正確率 0.881
+    預測分布：未提及 77.3%、正面 13.1%、負面 9.6%
+    實際分布：未提及 76.3%、正面 13.3%、負面 10.4%
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:00<00:00,  4.00it/s]Writing model shards: 100%|██████████| 1/1 [00:00<00:00,  4.00it/s]
+  ✓ 目前最佳，已存: runs\v3_full
+  Epoch 4 | Step 100/3809 | Loss 0.0791
+  Epoch 4 | Step 200/3809 | Loss 0.3048
+  Epoch 4 | Step 300/3809 | Loss 0.0997
+  Epoch 4 | Step 400/3809 | Loss 0.1296
+  Epoch 4 | Step 500/3809 | Loss 0.0387
+  Epoch 4 | Step 600/3809 | Loss 0.0177
+  Epoch 4 | Step 700/3809 | Loss 0.0691
+  Epoch 4 | Step 800/3809 | Loss 0.1028
+  Epoch 4 | Step 900/3809 | Loss 0.0700
+  Epoch 4 | Step 1000/3809 | Loss 0.1734
+  Epoch 4 | Step 1100/3809 | Loss 0.0492
+  Epoch 4 | Step 1200/3809 | Loss 0.1972
+  Epoch 4 | Step 1300/3809 | Loss 0.0339
+  Epoch 4 | Step 1400/3809 | Loss 0.2870
+  Epoch 4 | Step 1500/3809 | Loss 0.0525
+  Epoch 4 | Step 1600/3809 | Loss 0.0214
+  Epoch 4 | Step 1700/3809 | Loss 0.3465
+  Epoch 4 | Step 1800/3809 | Loss 0.2462
+  Epoch 4 | Step 1900/3809 | Loss 0.0506
+  Epoch 4 | Step 2000/3809 | Loss 0.0559
+  Epoch 4 | Step 2100/3809 | Loss 0.3487
+  Epoch 4 | Step 2200/3809 | Loss 0.2925
+  Epoch 4 | Step 2300/3809 | Loss 0.0336
+  Epoch 4 | Step 2400/3809 | Loss 0.2248
+  Epoch 4 | Step 2500/3809 | Loss 0.1120
+  Epoch 4 | Step 2600/3809 | Loss 0.0722
+  Epoch 4 | Step 2700/3809 | Loss 0.6966
+  Epoch 4 | Step 2800/3809 | Loss 0.0534
+  Epoch 4 | Step 2900/3809 | Loss 0.2225
+  Epoch 4 | Step 3000/3809 | Loss 0.3087
+  Epoch 4 | Step 3100/3809 | Loss 0.1997
+  Epoch 4 | Step 3200/3809 | Loss 0.1197
+  Epoch 4 | Step 3300/3809 | Loss 0.0113
+  Epoch 4 | Step 3400/3809 | Loss 0.1733
+  Epoch 4 | Step 3500/3809 | Loss 0.1482
+  Epoch 4 | Step 3600/3809 | Loss 0.0476
+  Epoch 4 | Step 3700/3809 | Loss 0.0709
+  Epoch 4 | Step 3800/3809 | Loss 0.1419
+Epoch 4 平均 Loss: 0.1289
+  val: Acc 0.892  Macro-F1 0.801  正負向正確率 0.880
+    預測分布：未提及 75.6%、正面 13.7%、負面 10.7%
+    實際分布：未提及 76.3%、正面 13.3%、負面 10.4%
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:00<00:00,  2.92it/s]Writing model shards: 100%|██████████| 1/1 [00:00<00:00,  2.92it/s]
+  ✓ 目前最佳，已存: runs\v3_full
+Loading weights:   0%|          | 0/201 [00:00<?, ?it/s]Loading weights: 100%|██████████| 201/201 [00:00<00:00, 11809.98it/s]
+
+=== val（最佳 epoch） ===
+  Acc 0.892  Macro-F1 0.801  正負向正確率 0.880
+              precision    recall  f1-score   support
+
+         未提及      0.947     0.938     0.943      9341
+          正面      0.740     0.761     0.750      1628
+          負面      0.699     0.722     0.710      1268
+
+    accuracy                          0.892     12237
+   macro avg      0.795     0.807     0.801     12237
+weighted avg      0.894     0.892     0.893     12237
+
+  不含總體 n= 10545  Macro-F1 0.793  正 P/R 0.73/0.75  負 P/R 0.68/0.67  正負向正確率 0.865
+
+  依 source：
+    baha                   n=  5971  Macro-F1 0.800  正 P/R 0.75/0.75  負 P/R 0.67/0.75  正負向正確率 0.875
+    ptt                    n=  6266  Macro-F1 0.803  正 P/R 0.73/0.77  負 P/R 0.72/0.70  正負向正確率 0.885
+  依 category：
+    CPU                    n=  2946  Macro-F1 0.805  正 P/R 0.75/0.80  負 P/R 0.71/0.69  正負向正確率 0.892
+    GPU                    n=  6265  Macro-F1 0.801  正 P/R 0.74/0.74  負 P/R 0.69/0.75  正負向正確率 0.870
+    SSD                    n=   493  Macro-F1 0.776  正 P/R 0.68/0.70  負 P/R 0.68/0.73  正負向正確率 0.862
+    主機板                    n=  1250  Macro-F1 0.839  正 P/R 0.78/0.81  負 P/R 0.72/0.83  正負向正確率 0.899
+    機殼                     n=   589  Macro-F1 0.759  正 P/R 0.70/0.77  負 P/R 0.70/0.57  正負向正確率 0.883
+    水冷                     n=    25  Macro-F1 0.838  正 P/R 0.67/1.00  負 P/R 1.00/0.67  正負向正確率 1.000
+    記憶體                    n=   274  Macro-F1 0.763  正 P/R 0.80/0.67  負 P/R 0.70/0.67  正負向正確率 0.927
+    電源                     n=   196  Macro-F1 0.757  正 P/R 0.73/0.76  負 P/R 0.59/0.59  正負向正確率 0.891
+    風冷                     n=   199  Macro-F1 0.737  正 P/R 0.64/0.73  負 P/R 0.74/0.55  正負向正確率 0.809
+  依 category_aspect：
+    CPU CP值                n=   416  Macro-F1 0.768  正 P/R 0.70/0.81  負 P/R 0.66/0.57  正負向正確率 0.828
+    CPU 功耗                 n=   425  Macro-F1 0.669  正 P/R 0.61/0.92  負 P/R 0.50/0.20  正負向正確率 0.824
+    CPU 效能                 n=   420  Macro-F1 0.805  正 P/R 0.85/0.84  負 P/R 0.64/0.74  正負向正確率 0.906
+    CPU 溫度                 n=   418  Macro-F1 0.853  正 P/R 0.90/0.79  負 P/R 0.80/0.67  正負向正確率 0.913
+    CPU 穩定                 n=   424  Macro-F1 0.788  正 P/R 0.62/0.77  負 P/R 0.71/0.69  正負向正確率 0.952
+    CPU 總體                 n=   419  Macro-F1 0.665  正 P/R 0.68/0.77  負 P/R 0.77/0.73  正負向正確率 0.895
+    CPU 超頻                 n=   424  Macro-F1 0.616  正 P/R 0.50/0.43  負 P/R 0.33/0.50  正負向正確率 1.000
+    GPU CP值                n=   788  Macro-F1 0.798  正 P/R 0.75/0.73  負 P/R 0.70/0.72  正負向正確率 0.862
+    GPU VRAM               n=   793  Macro-F1 0.747  正 P/R 0.53/0.59  負 P/R 0.59/0.85  正負向正確率 0.830
+    GPU 功耗                 n=   795  Macro-F1 0.610  正 P/R 0.37/0.50  負 P/R 0.40/0.44  正負向正確率 0.759
+    GPU 噪音                 n=   787  Macro-F1 0.776  正 P/R 0.55/0.86  負 P/R 0.73/0.62  正負向正確率 0.850
+    GPU 效能                 n=   775  Macro-F1 0.743  正 P/R 0.81/0.77  負 P/R 0.53/0.54  正負向正確率 0.849
+    GPU 溫度                 n=   783  Macro-F1 0.778  正 P/R 0.69/0.62  負 P/R 0.67/0.71  正負向正確率 0.804
+    GPU 穩定                 n=   777  Macro-F1 0.788  正 P/R 0.56/0.54  負 P/R 0.86/0.83  正負向正確率 0.903
+    GPU 總體                 n=   767  Macro-F1 0.641  正 P/R 0.76/0.78  負 P/R 0.68/0.79  正負向正確率 0.892
+    SSD CP值                n=    82  Macro-F1 0.851  正 P/R 0.85/0.74  負 P/R 0.83/0.83  正負向正確率 0.914
+    SSD 保固                 n=    83  Macro-F1 0.489  正 P/R 0.00/0.00  負 P/R 0.50/0.50  正負向正確率 0.250
+    SSD 壽命                 n=    83  Macro-F1 0.787  正 P/R 1.00/1.00  負 P/R 0.40/0.40  正負向正確率 1.000
+    SSD 發熱                 n=    83  Macro-F1 0.625  正 P/R 0.62/0.62  負 P/R 0.20/0.50  正負向正確率 0.700
+    SSD 總體                 n=    82  Macro-F1 0.705  正 P/R 0.74/0.78  負 P/R 0.73/0.81  正負向正確率 0.898
+    SSD 速度                 n=    80  Macro-F1 0.660  正 P/R 0.33/0.40  負 P/R 1.00/0.50  正負向正確率 0.778
+    主機板 BIOS               n=   217  Macro-F1 0.699  正 P/R 0.75/0.38  負 P/R 0.50/0.80  正負向正確率 0.846
+    主機板 CP值                n=   210  Macro-F1 0.824  正 P/R 0.74/0.79  負 P/R 0.73/0.79  正負向正確率 0.895
+    主機板 擴充性                n=   200  Macro-F1 0.764  正 P/R 0.71/0.75  負 P/R 0.55/0.60  正負向正確率 0.733
+    主機板 用料                 n=   204  Macro-F1 0.685  正 P/R 0.82/0.85  負 P/R 0.20/0.33  正負向正確率 0.933
+    主機板 穩定                 n=   220  Macro-F1 0.725  正 P/R 0.50/0.50  負 P/R 0.64/0.80  正負向正確率 0.833
+    主機板 總體                 n=   199  Macro-F1 0.736  正 P/R 0.84/0.91  負 P/R 0.80/0.89  正負向正確率 0.943
+    機殼 CP值                 n=   108  Macro-F1 0.719  正 P/R 0.33/1.00  負 P/R 1.00/0.50  正負向正確率 0.667
+    機殼 做工                  n=   103  Macro-F1 0.653  正 P/R 1.00/0.60  負 P/R 0.50/0.17  正負向正確率 0.909
+    機殼 外觀                  n=    92  Macro-F1 0.694  正 P/R 0.78/0.78  負 P/R 0.67/0.25  正負向正確率 0.941
+    機殼 擴充性                 n=    90  Macro-F1 0.696  正 P/R 0.58/0.88  負 P/R 0.75/0.33  正負向正確率 0.824
+    機殼 散熱                  n=   103  Macro-F1 0.738  正 P/R 0.72/0.72  負 P/R 0.53/0.80  正負向正確率 0.857
+    機殼 總體                  n=    93  Macro-F1 0.678  正 P/R 0.74/0.79  負 P/R 0.77/0.69  正負向正確率 0.912
+    水冷 CP值                 n=     5  Macro-F1 1.000  正 P/R   - /  -   負 P/R 1.00/1.00  正負向正確率 1.000
+    水冷 噪音                  n=     5  Macro-F1 1.000  正 P/R   - /  -   負 P/R 1.00/1.00  正負向正確率 1.000
+    水冷 壓制力                 n=     5  Macro-F1 0.619  正 P/R 1.00/1.00  負 P/R   - /0.00  正負向正確率 1.000
+    水冷 穩定                  n=     5  Macro-F1 1.000  正 P/R   - /  -   負 P/R   - /  -   正負向正確率 0.000
+    水冷 總體                  n=     5  Macro-F1 0.489  正 P/R 0.50/1.00  負 P/R 1.00/0.67  正負向正確率 1.000
+    記憶體 CP值                n=    55  Macro-F1 0.542  正 P/R 0.73/0.67  負 P/R 0.00/  -   正負向正確率 0.917
+    記憶體 相容性                n=    54  Macro-F1 0.649  正 P/R 0.33/0.50  負 P/R 0.75/0.50  正負向正確率 0.875
+    記憶體 穩定                 n=    54  Macro-F1 0.757  正 P/R 1.00/0.60  負 P/R 0.73/0.62  正負向正確率 0.957
+    記憶體 總體                 n=    55  Macro-F1 0.569  正 P/R 0.82/0.64  負 P/R 0.68/0.75  正負向正確率 0.929
+    記憶體 超頻                 n=    56  Macro-F1 0.881  正 P/R 0.88/0.88  負 P/R 1.00/0.67  正負向正確率 0.909
+    電源 CP值                 n=    33  Macro-F1 0.688  正 P/R 0.40/0.40  負 P/R 0.67/1.00  正負向正確率 1.000
+    電源 保固                  n=    33  Macro-F1 0.550  正 P/R 0.50/1.00  負 P/R   - /0.00  正負向正確率 0.600
+    電源 噪音                  n=    33  Macro-F1 0.492  正 P/R   - /  -   負 P/R   - /0.00  正負向正確率 1.000
+    電源 模組化                 n=    33  Macro-F1 1.000  正 P/R   - /  -   負 P/R   - /  -   正負向正確率 0.000
+    電源 穩定                  n=    32  Macro-F1 0.614  正 P/R 0.50/1.00  負 P/R 0.33/0.25  正負向正確率 1.000
+    電源 總體                  n=    32  Macro-F1 0.654  正 P/R 0.89/0.81  負 P/R 0.64/1.00  正負向正確率 0.893
+    風冷 CP值                 n=    40  Macro-F1 0.702  正 P/R 0.50/0.56  負 P/R 0.71/0.62  正負向正確率 0.706
+    風冷 噪音                  n=    40  Macro-F1 0.619  正 P/R 0.75/1.00  負 P/R   - /0.00  正負向正確率 0.750
+    風冷 壓制力                 n=    39  Macro-F1 0.781  正 P/R 0.73/0.73  負 P/R 1.00/0.57  正負向正確率 0.889
+    風冷 安裝                  n=    40  Macro-F1 0.547  正 P/R 0.00/  -   負 P/R 1.00/0.50  正負向正確率 1.000
+    風冷 總體                  n=    40  Macro-F1 0.567  正 P/R 0.69/0.79  負 P/R 0.64/0.54  正負向正確率 0.815
+
+=== test ===
+  Acc 0.899  Macro-F1 0.814  正負向正確率 0.877
+              precision    recall  f1-score   support
+
+         未提及      0.950     0.945     0.948     11268
+          正面      0.752     0.766     0.759      1973
+          負面      0.730     0.740     0.735      1614
+
+    accuracy                          0.899     14855
+   macro avg      0.811     0.817     0.814     14855
+weighted avg      0.900     0.899     0.900     14855
+
+  不含總體 n= 12829  Macro-F1 0.809  正 P/R 0.76/0.75  負 P/R 0.72/0.70  正負向正確率 0.866
+
+  依 source：
+    baha                   n=  6141  Macro-F1 0.811  正 P/R 0.77/0.77  負 P/R 0.70/0.74  正負向正確率 0.868
+    ptt                    n=  8714  Macro-F1 0.815  正 P/R 0.73/0.77  負 P/R 0.75/0.74  正負向正確率 0.884
+  依 category：
+    CPU                    n=  2222  Macro-F1 0.806  正 P/R 0.73/0.81  負 P/R 0.71/0.71  正負向正確率 0.901
+    GPU                    n=  9658  Macro-F1 0.817  正 P/R 0.75/0.75  負 P/R 0.74/0.75  正負向正確率 0.870
+    SSD                    n=   712  Macro-F1 0.805  正 P/R 0.79/0.65  負 P/R 0.69/0.85  正負向正確率 0.855
+    主機板                    n=   999  Macro-F1 0.810  正 P/R 0.74/0.80  負 P/R 0.73/0.73  正負向正確率 0.886
+    機殼                     n=   570  Macro-F1 0.815  正 P/R 0.76/0.82  負 P/R 0.78/0.66  正負向正確率 0.881
+    水冷                     n=    60  Macro-F1 0.644  正 P/R 0.40/0.55  負 P/R 0.83/0.50  正負向正確率 0.762
+    記憶體                    n=   360  Macro-F1 0.801  正 P/R 0.81/0.79  負 P/R 0.73/0.68  正負向正確率 0.910
+    電源                     n=   180  Macro-F1 0.790  正 P/R 0.89/0.84  負 P/R 0.55/0.55  正負向正確率 0.875
+    風冷                     n=    94  Macro-F1 0.769  正 P/R 0.84/0.81  負 P/R 0.50/0.67  正負向正確率 0.906
+  依 category_aspect：
+    CPU CP值                n=   318  Macro-F1 0.767  正 P/R 0.66/0.77  負 P/R 0.71/0.65  正負向正確率 0.882
+    CPU 功耗                 n=   322  Macro-F1 0.509  正 P/R 0.47/0.67  負 P/R 0.00/0.00  正負向正確率 1.000
+    CPU 效能                 n=   315  Macro-F1 0.804  正 P/R 0.87/0.84  負 P/R 0.71/0.72  正負向正確率 0.913
+    CPU 溫度                 n=   320  Macro-F1 0.753  正 P/R 0.95/0.90  負 P/R 0.25/0.50  正負向正確率 0.870
+    CPU 穩定                 n=   314  Macro-F1 0.801  正 P/R 0.61/0.88  負 P/R 0.78/0.67  正負向正確率 0.892
+    CPU 總體                 n=   316  Macro-F1 0.683  正 P/R 0.67/0.81  負 P/R 0.74/0.77  正負向正確率 0.893
+    CPU 超頻                 n=   317  Macro-F1 0.513  正 P/R 0.62/0.50  負 P/R 0.00/0.00  正負向正確率 1.000
+    GPU CP值                n=  1203  Macro-F1 0.788  正 P/R 0.70/0.68  負 P/R 0.71/0.78  正負向正確率 0.844
+    GPU VRAM               n=  1216  Macro-F1 0.826  正 P/R 0.80/0.64  負 P/R 0.78/0.79  正負向正確率 0.818
+    GPU 功耗                 n=  1210  Macro-F1 0.843  正 P/R 0.68/0.85  負 P/R 0.90/0.69  正負向正確率 0.925
+    GPU 噪音                 n=  1214  Macro-F1 0.776  正 P/R 0.72/0.69  負 P/R 0.73/0.55  正負向正確率 0.783
+    GPU 效能                 n=  1203  Macro-F1 0.755  正 P/R 0.78/0.78  負 P/R 0.61/0.53  正負向正確率 0.847
+    GPU 溫度                 n=  1210  Macro-F1 0.792  正 P/R 0.82/0.80  負 P/R 0.69/0.50  正負向正確率 0.892
+    GPU 穩定                 n=  1200  Macro-F1 0.827  正 P/R 0.76/0.58  負 P/R 0.84/0.85  正負向正確率 0.910
+    GPU 總體                 n=  1202  Macro-F1 0.686  正 P/R 0.75/0.78  負 P/R 0.74/0.79  正負向正確率 0.893
+    SSD CP值                n=   118  Macro-F1 0.778  正 P/R 0.81/0.59  負 P/R 0.70/0.74  正負向正確率 0.829
+    SSD 保固                 n=   118  Macro-F1 0.661  正 P/R 0.50/0.50  負 P/R 0.40/0.67  正負向正確率 0.600
+    SSD 壽命                 n=   119  Macro-F1 0.571  正 P/R 0.00/0.00  負 P/R 0.60/1.00  正負向正確率 0.667
+    SSD 發熱                 n=   118  Macro-F1 0.881  正 P/R 0.85/0.77  負 P/R 0.80/0.94  正負向正確率 0.897
+    SSD 總體                 n=   119  Macro-F1 0.701  正 P/R 0.75/0.73  負 P/R 0.72/0.89  正負向正確率 0.880
+    SSD 速度                 n=   120  Macro-F1 0.672  正 P/R 1.00/0.62  負 P/R 0.20/0.50  正負向正確率 0.870
+    主機板 BIOS               n=   170  Macro-F1 0.711  正 P/R 0.82/0.82  負 P/R 0.33/0.33  正負向正確率 0.824
+    主機板 CP值                n=   172  Macro-F1 0.796  正 P/R 0.70/0.77  負 P/R 0.73/0.73  正負向正確率 0.850
+    主機板 擴充性                n=   159  Macro-F1 0.714  正 P/R 0.65/0.68  負 P/R 0.50/0.60  正負向正確率 0.867
+    主機板 用料                 n=   165  Macro-F1 0.625  正 P/R 0.65/0.71  負 P/R 0.25/0.25  正負向正確率 0.840
+    主機板 穩定                 n=   173  Macro-F1 0.825  正 P/R 0.55/0.86  負 P/R 0.93/0.76  正負向正確率 0.958
+    主機板 總體                 n=   160  Macro-F1 0.645  正 P/R 0.83/0.86  負 P/R 0.78/0.81  正負向正確率 0.910
+    機殼 CP值                 n=    95  Macro-F1 0.885  正 P/R 1.00/0.60  負 P/R 1.00/0.86  正負向正確率 1.000
+    機殼 做工                  n=    95  Macro-F1 0.646  正 P/R 1.00/0.40  負 P/R 0.50/0.33  正負向正確率 0.875
+    機殼 外觀                  n=    95  Macro-F1 0.854  正 P/R 0.92/0.92  負 P/R 0.83/0.56  正負向正確率 0.857
+    機殼 擴充性                 n=    95  Macro-F1 0.784  正 P/R 0.50/1.00  負 P/R 0.83/0.62  正負向正確率 0.909
+    機殼 散熱                  n=    95  Macro-F1 0.826  正 P/R 0.75/0.95  負 P/R 0.85/0.61  正負向正確率 0.892
+    機殼 總體                  n=    95  Macro-F1 0.657  正 P/R 0.72/0.79  負 P/R 0.72/0.69  正負向正確率 0.859
+    水冷 CP值                 n=    12  Macro-F1 0.756  正 P/R 0.75/0.60  負 P/R 0.67/1.00  正負向正確率 0.857
+    水冷 噪音                  n=    12  Macro-F1 0.480  正 P/R 0.00/0.00  負 P/R 1.00/0.33  正負向正確率 0.500
+    水冷 壓制力                 n=    12  Macro-F1 0.267  正 P/R 0.00/  -   負 P/R   - /0.00  正負向正確率 1.000
+    水冷 穩定                  n=    12  Macro-F1 1.000  正 P/R   - /  -   負 P/R   - /  -   正負向正確率 0.000
+    水冷 總體                  n=    12  Macro-F1 0.499  正 P/R 0.50/0.60  負 P/R 1.00/0.50  正負向正確率 0.778
+    記憶體 CP值                n=    72  Macro-F1 0.750  正 P/R 0.75/0.75  負 P/R 0.50/0.60  正負向正確率 0.824
+    記憶體 相容性                n=    73  Macro-F1 0.469  正 P/R 0.00/0.00  負 P/R 0.60/0.43  正負向正確率 0.727
+    記憶體 穩定                 n=    71  Macro-F1 0.781  正 P/R 0.55/0.75  負 P/R 0.85/0.79  正負向正確率 0.955
+    記憶體 總體                 n=    73  Macro-F1 0.740  正 P/R 0.87/0.84  負 P/R 0.79/0.79  正負向正確率 0.946
+    記憶體 超頻                 n=    71  Macro-F1 0.762  正 P/R 1.00/0.90  負 P/R 0.50/0.33  正負向正確率 0.926
+    電源 CP值                 n=    30  Macro-F1 0.553  正 P/R 0.90/0.69  負 P/R 0.00/0.00  正負向正確率 0.800
+    電源 保固                  n=    30  Macro-F1 1.000  正 P/R 1.00/1.00  負 P/R 1.00/1.00  正負向正確率 1.000
+    電源 噪音                  n=    30  Macro-F1 0.492  正 P/R   - /0.00  負 P/R   - /  -   正負向正確率 1.000
+    電源 模組化                 n=    30  Macro-F1 1.000  正 P/R 1.00/1.00  負 P/R   - /  -   正負向正確率 1.000
+    電源 穩定                  n=    30  Macro-F1 0.820  正 P/R 1.00/1.00  負 P/R 1.00/0.33  正負向正確率 0.833
+    電源 總體                  n=    30  Macro-F1 0.783  正 P/R 0.85/0.94  負 P/R 0.67/0.80  正負向正確率 0.913
+    風冷 CP值                 n=    19  Macro-F1 0.490  正 P/R 0.50/0.50  負 P/R   - /0.00  正負向正確率 0.667
+    風冷 噪音                  n=    19  Macro-F1 1.000  正 P/R 1.00/1.00  負 P/R 1.00/1.00  正負向正確率 1.000
+    風冷 壓制力                 n=    18  Macro-F1 0.647  正 P/R 1.00/1.00  負 P/R 0.00/  -   正負向正確率 1.000
+    風冷 安裝                  n=    19  Macro-F1 0.458  正 P/R 1.00/0.33  負 P/R 0.00/0.00  正負向正確率 0.750
+    風冷 總體                  n=    19  Macro-F1 0.677  正 P/R 0.70/0.78  負 P/R 0.60/1.00  正負向正確率 0.917
+
+=== test_hard（參考用） ===
+  Acc 0.911  Macro-F1 0.805  正負向正確率 0.875
+              precision    recall  f1-score   support
+
+         未提及      0.945     0.969     0.957      1126
+          正面      0.773     0.764     0.768       178
+          負面      0.771     0.622     0.689       135
+
+    accuracy                          0.911      1439
+   macro avg      0.830     0.785     0.805      1439
+weighted avg      0.908     0.911     0.908      1439
+
+  依 held_reason：
+    other_model_evidence   n=   493  Macro-F1 0.813  正 P/R 0.76/0.73  負 P/R 0.81/0.67  正負向正確率 0.851
+    shared_evidence        n=   946  Macro-F1 0.800  正 P/R 0.78/0.78  負 P/R 0.75/0.60  正負向正確率 0.887
+  依 source：
+    baha                   n=   758  Macro-F1 0.809  正 P/R 0.78/0.80  負 P/R 0.76/0.62  正負向正確率 0.853
+    ptt                    n=   681  Macro-F1 0.793  正 P/R 0.76/0.69  負 P/R 0.78/0.62  正負向正確率 0.911
+  依 category：
+    CPU                    n=   171  Macro-F1 0.844  正 P/R 0.83/0.76  負 P/R 0.83/0.71  正負向正確率 0.846
+    GPU                    n=  1121  Macro-F1 0.814  正 P/R 0.76/0.82  負 P/R 0.76/0.64  正負向正確率 0.871
+    SSD                    n=    20  Macro-F1 1.000  正 P/R   - /  -   負 P/R 1.00/1.00  正負向正確率 1.000
+    機殼                     n=    60  Macro-F1 0.692  正 P/R 0.50/0.33  負 P/R 1.00/0.62  正負向正確率 1.000
+    記憶體                    n=    11  Macro-F1 0.378  正 P/R 0.50/0.25  負 P/R   - /0.00  正負向正確率 0.800
+    電源                     n=     8  Macro-F1 0.429  正 P/R   - /0.00  負 P/R   - /  -   正負向正確率 0.000
+    風冷                     n=    48  Macro-F1 0.561  正 P/R 1.00/0.73  負 P/R 0.00/0.00  正負向正確率 1.000
+
+=== test_no_opinion（答案全是未提及，看誤判率）===
+    全部                     n=  3317  誤判率 16.4%（判成正面 9.2%、負面 7.2%）
+    不含總體                   n=  2861  誤判率 9.1%（判成正面 6.1%、負面 3.0%）
+  依 source：
+    baha                   n=   730  誤判率 19.2%（判成正面 12.3%、負面 6.8%）
+    ptt                    n=  2587  誤判率 15.6%（判成正面 8.3%、負面 7.3%）
+  依 p3_had_opinion：
+    False                  n=  3317  誤判率 16.4%（判成正面 9.2%、負面 7.2%）
+  依 category：
+    CPU                    n=   434  誤判率 17.1%（判成正面 13.6%、負面 3.5%）
+    GPU                    n=  2192  誤判率 15.7%（判成正面 8.3%、負面 7.4%）
+    SSD                    n=   168  誤判率 16.1%（判成正面 7.7%、負面 8.3%）
+    主機板                    n=   210  誤判率 18.1%（判成正面 9.0%、負面 9.0%）
+    機殼                     n=   150  誤判率 16.7%（判成正面 5.3%、負面 11.3%）
+    水冷                     n=     5  誤判率 20.0%（判成正面 0.0%、負面 20.0%）
+    記憶體                    n=   115  誤判率 18.3%（判成正面 9.6%、負面 8.7%）
+    電源                     n=    18  誤判率 22.2%（判成正面 22.2%、負面 0.0%）
+    風冷                     n=    25  誤判率 32.0%（判成正面 28.0%、負面 4.0%）
+  誤判率最高的面向（樣本數 ≥ 50）：
+    GPU 總體                 n=   274  誤判率 66.8%（判成正面 30.7%、負面 36.1%）
+    CPU 總體                 n=    62  誤判率 48.4%（判成正面 33.9%、負面 14.5%）
+    CPU 效能                 n=    62  誤判率 30.6%（判成正面 25.8%、負面 4.8%）
+    CPU CP值                n=    62  誤判率 27.4%（判成正面 24.2%、負面 3.2%）
+    GPU 效能                 n=   274  誤判率 24.8%（判成正面 16.4%、負面 8.4%）
+    GPU CP值                n=   274  誤判率 16.1%（判成正面 9.1%、負面 6.9%）
+    GPU 穩定                 n=   274  誤判率 7.7%（判成正面 2.9%、負面 4.7%）
+    CPU 穩定                 n=    62  誤判率 6.5%（判成正面 4.8%、負面 1.6%）
+
+=== test_irrelevant（答案全是未提及，看誤判率）===
+    全部                     n= 21636  誤判率 17.1%（判成正面 8.4%、負面 8.7%）
+    不含總體                   n= 18594  誤判率 10.5%（判成正面 6.0%、負面 4.6%）
+  依 source：
+    baha                   n=  7493  誤判率 21.3%（判成正面 12.8%、負面 8.6%）
+    ptt                    n= 14143  誤判率 14.9%（判成正面 6.1%、負面 8.7%）
+  依 p3_had_opinion：
+    False                  n= 16587  誤判率 15.0%（判成正面 7.1%、負面 7.9%）
+    True                   n=  5049  誤判率 24.0%（判成正面 12.8%、負面 11.2%）
+  依 category：
+    CPU                    n=  4739  誤判率 17.6%（判成正面 9.4%、負面 8.2%）
+    GPU                    n= 11736  誤判率 15.7%（判成正面 7.3%、負面 8.4%）
+    SSD                    n=   810  誤判率 18.1%（判成正面 10.0%、負面 8.1%）
+    主機板                    n=  1638  誤判率 21.4%（判成正面 12.8%、負面 8.6%）
+    機殼                     n=  1230  誤判率 18.0%（判成正面 9.0%、負面 8.9%）
+    水冷                     n=    40  誤判率 22.5%（判成正面 5.0%、負面 17.5%）
+    記憶體                    n=   945  誤判率 20.3%（判成正面 7.5%、負面 12.8%）
+    電源                     n=   348  誤判率 21.0%（判成正面 8.0%、負面 12.9%）
+    風冷                     n=   150  誤判率 18.7%（判成正面 12.0%、負面 6.7%）
+  誤判率最高的面向（樣本數 ≥ 50）：
+    電源 總體                  n=    58  誤判率 69.0%（判成正面 27.6%、負面 41.4%）
+    主機板 總體                 n=   273  誤判率 61.9%（判成正面 34.1%、負面 27.8%）
+    SSD 總體                 n=   135  誤判率 60.0%（判成正面 27.4%、負面 32.6%）
+    機殼 總體                  n=   205  誤判率 58.5%（判成正面 25.9%、負面 32.7%）
+    GPU 總體                 n=  1467  誤判率 57.6%（判成正面 21.9%、負面 35.7%）
+    CPU 總體                 n=   677  誤判率 56.4%（判成正面 23.6%、負面 32.8%）
+    記憶體 總體                 n=   189  誤判率 45.5%（判成正面 14.8%、負面 30.7%）
+    CPU 效能                 n=   677  誤判率 31.0%（判成正面 23.5%、負面 7.5%）
+
+✓ 模型與結果已存: runs\v3_full
