@@ -1,0 +1,70 @@
+{
+  "model_dir": "runs/v3b",
+  "data_dir": "aspect_dataset_v3b",
+  "labels": [
+    "未提及",
+    "正面",
+    "負面"
+  ],
+  "excluding_overall": true,
+  "test": {
+    "n": 15690,
+    "confusion": [
+      [
+        13150,
+        265,
+        137
+      ],
+      [
+        254,
+        900,
+        112
+      ],
+      [
+        185,
+        94,
+        593
+      ]
+    ]
+  },
+  "test_no_opinion_slice": {
+    "n": 2861,
+    "confusion": [
+      [
+        2698,
+        108,
+        55
+      ],
+      [
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0
+      ]
+    ]
+  },
+  "test_irrelevant": {
+    "n": 18594,
+    "confusion": [
+      [
+        17204,
+        751,
+        639
+      ],
+      [
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0
+      ]
+    ]
+  }
+}
