@@ -8,7 +8,6 @@ import {
   recommend,
   type AspectEvidence,
   type AspectPrefs,
-  type CoolingPreference,
   type PreferenceWeights,
   type RecommendedPart,
   type RecommendResponse,
@@ -18,7 +17,9 @@ import {
 import styles from "./preference-slider.module.css";
 
 const MIN_BUDGET = 10000;
-const INITIAL_USAGE: Usage = "工作";
+// 目前只開放遊戲用途：實驗與收斂驗證都只做過遊戲，工作用途低預算時各種子結果不一致。
+// 後端仍保留工作、一般文書的設定，之後驗證完再把用途選單加回來。
+const INITIAL_USAGE: Usage = "遊戲";
 
 /**
  * 各用途的系統預設比重，對應 code/ga_pc_builder/config.py 的 USAGE_WEIGHTS
@@ -61,7 +62,6 @@ interface SavedState {
   budget: string;
   usage: Usage;
   weights: PreferenceWeights;
-  cooling: CoolingPreference;
   allowAdapter: boolean;
   aspectPrefs: AspectPrefs;
   result: RecommendResponse | null;
@@ -116,11 +116,11 @@ function Builder({ saved }: { saved: SavedState | null }) {
   // 存字串而不是數字：存數字的話清空欄位會讓 Number("") 變成 0，畫面重新渲染出
   // 一個刪不掉的「0」——想刪它又觸發同一次轉換，使用者永遠清不乾淨。
   const [budget, setBudget] = useState(saved?.budget ?? "40000");
-  const [usage, setUsage] = useState<Usage>(saved?.usage ?? INITIAL_USAGE);
+  // 用途固定為遊戲；舊的暫存若存了「工作」也不沿用
+  const usage: Usage = INITIAL_USAGE;
   const [weights, setWeights] = useState<PreferenceWeights>(
     () => saved?.weights ?? defaultSliders(INITIAL_USAGE),
   );
-  const [cooling, setCooling] = useState<CoolingPreference>(saved?.cooling ?? "auto");
   // 16-pin 顯卡能不能用轉接線接在沒有原生 16-pin 的電源上；預設不允許（後端只推薦有原生接頭的電源）
   const [allowAdapter, setAllowAdapter] = useState(saved?.allowAdapter ?? false);
   const [selectable, setSelectable] = useState<SelectableAspects[]>([]);
@@ -131,13 +131,13 @@ function Builder({ saved }: { saved: SavedState | null }) {
 
   // 設定或結果一改就寫回 sessionStorage
   useEffect(() => {
-    const state: SavedState = { budget, usage, weights, cooling, allowAdapter, aspectPrefs, result };
+    const state: SavedState = { budget, usage, weights, allowAdapter, aspectPrefs, result };
     try {
       sessionStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     } catch {
       // 寫不進去（無痕模式、容量滿）就算了，只是切頁後不會保留
     }
-  }, [budget, usage, weights, cooling, allowAdapter, aspectPrefs, result]);
+  }, [budget, usage, weights, allowAdapter, aspectPrefs, result]);
 
   useEffect(() => {
     let cancelled = false;
@@ -165,7 +165,8 @@ function Builder({ saved }: { saved: SavedState | null }) {
       const res = await recommend({
         budget: parsedBudget,
         usage,
-        cooling_prefer: cooling,
+        // 散熱偏好不開放選擇（水冷已停用，只剩自動／風冷），一律交給 GA 自動決定
+        cooling_prefer: "auto",
         allow_16pin_adapter: allowAdapter,
         // 沒調整過（或三項全是 0）就不送，讓後端完整沿用該用途的預設比重
         ...(isCustomized(usage, weights) && total > 0 ? { weights } : {}),
@@ -209,35 +210,6 @@ function Builder({ saved }: { saved: SavedState | null }) {
                     className="w-full min-w-0 bg-transparent px-2 py-2 font-mono text-sm tabular-nums outline-none"
                   />
                 </div>
-              </label>
-
-              <label className="flex flex-col gap-1.5">
-                <FieldLabel>用途</FieldLabel>
-                <select
-                  value={usage}
-                  onChange={(e) => {
-                    const next = e.target.value as Usage;
-                    setUsage(next);
-                    // 滑桿跟著跳到新用途的預設位置，不然會把上一個用途的比重帶過來
-                    setWeights(defaultSliders(next));
-                  }}
-                  className="rounded-sm border border-border-strong bg-bg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent"
-                >
-                  <option value="工作">工作</option>
-                  <option value="遊戲">遊戲</option>
-                </select>
-              </label>
-
-              <label className="flex flex-col gap-1.5">
-                <FieldLabel>散熱偏好</FieldLabel>
-                <select
-                  value={cooling}
-                  onChange={(e) => setCooling(e.target.value as CoolingPreference)}
-                  className="rounded-sm border border-border-strong bg-bg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent"
-                >
-                  <option value="auto">自動</option>
-                  <option value="風冷">風冷</option>
-                </select>
               </label>
             </div>
 
@@ -601,7 +573,7 @@ function EmptyState({ loading }: { loading: boolean }) {
               在左側設定條件後按「生成配置」，推薦的零件與口碑依據會顯示在這裡。
             </p>
             <ol className="mt-6 flex flex-wrap justify-center gap-2 text-xs text-text-muted">
-              {["輸入預算與用途", "調整偏好比重（選填）", "生成配置"].map((step, i) => (
+              {["輸入預算", "調整偏好比重（選填）", "生成配置"].map((step, i) => (
                 <li key={step} className="flex items-center gap-1.5 rounded-sm border border-border bg-bg px-2 py-1">
                   <span className={`text-text-dim ${MONO}`}>{i + 1}</span>
                   {step}
