@@ -184,3 +184,16 @@ bert_train/aspect_dataset_v3/
 bert_train/aspect_dataset_v3_full/
 bert_train/bert_*_aspect/
 bert_train/runs/
+
+# --- 專題文獻撰寫資料，只留在本機 ---
+/專題文獻撰寫/
+
+# --- 可重新產生的資料與訓練產出 ---
+bert_train/aspect_dataset_v3b/
+bert_train/20261006_ckip_4輪/
+bert_train/BERT訓練成果_20261010/
+# build_part_sentiment.py 的輸出
+/data/aspect_reviews_final.jsonl
+/data/aspect_reviews_dropped.jsonl
+/src/database/input/ptt_comment/relevant_fixed.jsonl
+/src/database/input/ptt_comment/relevant_fixed_postrelease.jsonl
