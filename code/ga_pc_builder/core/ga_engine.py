@@ -80,6 +80,8 @@ class GARecommender:
         allow_16pin_adapter: bool = False,
         local_search_every: int = 30,
         polish: bool = True,
+        perf_basis: str = "price",
+        cp_mode: str = "ratio",
     ):
         assert usage in USAGE_WEIGHTS, f"usage 必須是 {list(USAGE_WEIGHTS.keys())}"
         self.catalog     = catalog
@@ -106,6 +108,16 @@ class GARecommender:
         # 不獨立成項時（pref_term_share=0），指定的面向佔該零件口碑的比例；1 表示只看指定的面向
         self.pref_share = pref_share
         self.budget      = budget
+        # 沒有跑分的零件用什麼當效能：
+        #   "price"   → 價格（舊做法，貴就是好）
+        #   "hedonic" → hedonic 規格價值（data/hedonic.py，扣掉品牌、白色、RGB 等溢價）
+        assert perf_basis in ("price", "hedonic"), "perf_basis 必須是 price 或 hedonic"
+        self.perf_basis  = perf_basis
+        # CP 值的算法：
+        #   "ratio"   → 效能 / (總價/預算)，舊做法；少花錢 CP 就變高，會鼓勵沒花完預算
+        #   "noUnder" → 預算內不因少花錢加分（比例下限 1），只有超支才扣
+        assert cp_mode in ("ratio", "noUnder"), "cp_mode 必須是 ratio 或 noUnder"
+        self.cp_mode     = cp_mode
         self.pop_size    = pop_size
         self.generations = generations
         self.elite_k     = elite_k
@@ -187,6 +199,7 @@ class GARecommender:
         """
         self._bench_range: dict[str, tuple[float, float]] = {}
         self._price_range: dict[str, tuple[float, float]] = {}
+        self._spec_range: dict[str, tuple[float, float]] = {}
         for cat in PRICE_CEILING:
             parts = self.catalog.get(cat)
             if not parts:
@@ -204,6 +217,10 @@ class GARecommender:
             prices = [p.price for p in parts if p.price > 0]
             if prices:
                 self._price_range[cat] = (min(prices), max(prices))
+            if self.perf_basis == "hedonic":
+                vals = [p.specs["spec_value"] for p in parts if p.specs.get("spec_value")]
+                if vals:
+                    self._spec_range[cat] = (min(vals), max(vals))
 
     # ── 合法性修補 ────────────────────────────────────────────────
     @staticmethod
@@ -580,6 +597,9 @@ class GARecommender:
             if benchmark > 0 and cat in self._bench_range:
                 bmin, bmax = self._bench_range[cat]
                 norm = 1.0 if bmax <= bmin else (benchmark - bmin) / (bmax - bmin)
+            elif cat in self._spec_range and part.specs.get("spec_value"):
+                smin, smax = self._spec_range[cat]
+                norm = 1.0 if smax <= smin else (part.specs["spec_value"] - smin) / (smax - smin)
             else:
                 pmin, pmax = self._price_range.get(cat, (0.0, 0.0))
                 if pmax <= pmin:
@@ -618,6 +638,8 @@ class GARecommender:
     def _cp_score(self, build: Build) -> float:
         perf = self._perf_score(build)
         ratio = build.total_price / max(self.budget, 1)
+        if self.cp_mode == "noUnder":
+            ratio = max(ratio, 1.0)
         return min(perf / ratio, 1.0) if ratio > 0 else 0.0
 
     def _budget_penalty(self, build: Build) -> float:
