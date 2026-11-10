@@ -1,0 +1,628 @@
+{
+ "主機板": {
+  "valid": true,
+  "form_chosen": "ML",
+  "lambda_ml": [
+   -0.4,
+   1.0
+  ],
+  "groupcv_ml_lnprice": 0.939,
+  "groupcv_by_form": {
+   "ML": 0.939,
+   "log-log": 0.906,
+   "semi-log": 0.936,
+   "linear": -56.386
+  },
+  "n": 307,
+  "varieties": 298,
+  "families": 219,
+  "params": 30,
+  "lambda_y": -0.4,
+  "lambda_x": 1.0,
+  "lr_tests": {
+   "log-log (0,0)": [
+    179.8,
+    0.0
+   ],
+   "semi-log (0,1)": [
+    56.56,
+    0.0
+   ],
+   "linear (1,1)": [
+    639.44,
+    0.0
+   ]
+  },
+  "r2_transformed": 0.965,
+  "r2_lnprice": 0.962,
+  "r2_groupcv_transformed": 0.947,
+  "r2_groupcv_lnprice": 0.939,
+  "cook_flagged": 26,
+  "rank_stability_without_flagged": 0.999,
+  "vif": {
+   "lan_gbps": 2.1,
+   "m2_slots": 5.7,
+   "vrm_phases": 5.2
+  },
+  "missing_imputed": [
+   "m2_slots",
+   "vrm_phases"
+  ],
+  "coef_functional": {
+   "lan_gbps": [
+    0.0009,
+    0.0002
+   ],
+   "m2_slots": [
+    0.0037,
+    0.0005
+   ],
+   "vrm_phases": [
+    0.0009,
+    0.0001
+   ],
+   "chip_A520": [
+    -0.024,
+    0.0029
+   ],
+   "chip_A620": [
+    -0.0167,
+    0.0022
+   ],
+   "chip_B550": [
+    -0.0126,
+    0.0023
+   ],
+   "chip_B650": [
+    -0.009,
+    0.0016
+   ],
+   "chip_B760": [
+    -0.0093,
+    0.0018
+   ],
+   "chip_B840": [
+    -0.003,
+    0.0018
+   ],
+   "chip_B850": [
+    -0.0027,
+    0.0012
+   ],
+   "chip_B860": [
+    -0.0036,
+    0.0015
+   ],
+   "chip_H610": [
+    -0.018,
+    0.0026
+   ],
+   "chip_H810": [
+    -0.0099,
+    0.0023
+   ],
+   "chip_X870": [
+    -0.0003,
+    0.0013
+   ],
+   "chip_X870E": [
+    0.0055,
+    0.0011
+   ],
+   "chip_Z790": [
+    -0.0058,
+    0.0028
+   ],
+   "ddr5": [
+    0.0001,
+    0.0013
+   ],
+   "wifi": [
+    0.0052,
+    0.0008
+   ],
+   "wifi7": [
+    0.0016,
+    0.0009
+   ],
+   "missing_m2_slots": [
+    -0.0029,
+    0.002
+   ],
+   "missing_vrm_phases": [
+    -0.0007,
+    0.0014
+   ]
+  }
+ },
+ "SSD": {
+  "valid": true,
+  "form_chosen": "ML",
+  "lambda_ml": [
+   0.1,
+   0.4
+  ],
+  "groupcv_ml_lnprice": 0.975,
+  "groupcv_by_form": {
+   "ML": 0.975,
+   "log-log": 0.961,
+   "semi-log": 0.847,
+   "linear": -40.878
+  },
+  "n": 80,
+  "varieties": 79,
+  "families": 57,
+  "params": 17,
+  "lambda_y": 0.1,
+  "lambda_x": 0.4,
+  "lr_tests": {
+   "log-log (0,0)": [
+    46.83,
+    0.0
+   ],
+   "semi-log (0,1)": [
+    137.38,
+    0.0
+   ],
+   "linear (1,1)": [
+    153.57,
+    0.0
+   ]
+  },
+  "r2_transformed": 0.988,
+  "r2_lnprice": 0.988,
+  "r2_groupcv_transformed": 0.976,
+  "r2_groupcv_lnprice": 0.975,
+  "cook_flagged": 8,
+  "rank_stability_without_flagged": 0.997,
+  "vif": {
+   "capacity_gb": 1.3,
+   "read_mbs": 115.2
+  },
+  "missing_imputed": [],
+  "coef_functional": {
+   "capacity_gb": [
+    0.0997,
+    0.0021
+   ],
+   "read_mbs": [
+    0.0676,
+    0.0154
+   ],
+   "dram": [
+    0.1586,
+    0.1484
+   ],
+   "if_PCIe Gen4": [
+    -3.2022,
+    0.9204
+   ],
+   "if_PCIe Gen5": [
+    -5.0667,
+    1.3224
+   ],
+   "m2230": [
+    -0.0846,
+    0.1436
+   ],
+   "qlc": [
+    -0.8421,
+    0.086
+   ]
+  }
+ },
+ "電源": {
+  "valid": true,
+  "form_chosen": "ML",
+  "lambda_ml": [
+   -0.3,
+   0.1
+  ],
+  "groupcv_ml_lnprice": 0.869,
+  "groupcv_by_form": {
+   "ML": 0.869,
+   "log-log": 0.893,
+   "semi-log": 0.837,
+   "linear": 0.059
+  },
+  "n": 63,
+  "varieties": 50,
+  "families": 30,
+  "params": 12,
+  "lambda_y": -0.3,
+  "lambda_x": 0.1,
+  "lr_tests": {
+   "log-log (0,0)": [
+    12.46,
+    0.002
+   ],
+   "semi-log (0,1)": [
+    6.45,
+    0.0397
+   ],
+   "linear (1,1)": [
+    37.26,
+    0.0
+   ]
+  },
+  "r2_transformed": 0.981,
+  "r2_lnprice": 0.98,
+  "r2_groupcv_transformed": 0.895,
+  "r2_groupcv_lnprice": 0.869,
+  "cook_flagged": 4,
+  "rank_stability_without_flagged": 0.989,
+  "vif": {
+   "wattage": 2.5
+  },
+  "missing_imputed": [],
+  "coef_functional": {
+   "wattage": [
+    0.0501,
+    0.0025
+   ],
+   "atx31": [
+    0.0094,
+    0.0061
+   ],
+   "full_modular": [
+    -0.008,
+    0.0076
+   ],
+   "pcie5": [
+    0.004,
+    0.0057
+   ],
+   "rt_白金": [
+    0.0631,
+    0.0068
+   ],
+   "rt_金牌": [
+    0.0417,
+    0.0086
+   ],
+   "rt_鈦金": [
+    0.044,
+    0.0113
+   ]
+  }
+ },
+ "機殼": {
+  "valid": false,
+  "form_chosen": "semi-log",
+  "lambda_ml": [
+   -0.2,
+   -1.0
+  ],
+  "groupcv_ml_lnprice": -2171.84,
+  "groupcv_by_form": {
+   "ML": -2171.84,
+   "log-log": -0.738,
+   "semi-log": -0.36,
+   "linear": -393.559
+  },
+  "n": 109,
+  "varieties": 100,
+  "families": 38,
+  "params": 20,
+  "lambda_y": 0.0,
+  "lambda_x": 1.0,
+  "lr_tests": {
+   "log-log (0,0)": [
+    2.95,
+    0.2293
+   ],
+   "semi-log (0,1)": [
+    3.47,
+    0.1768
+   ],
+   "linear (1,1)": [
+    84.55,
+    0.0
+   ]
+  },
+  "r2_transformed": 0.841,
+  "r2_lnprice": 0.841,
+  "r2_groupcv_transformed": -0.36,
+  "r2_groupcv_lnprice": -0.36,
+  "cook_flagged": 9,
+  "rank_stability_without_flagged": 0.867,
+  "vif": {
+   "max_cooler_mm": 4.8,
+   "max_gpu_mm": 2.9,
+   "max_water_mm": 6.5
+  },
+  "missing_imputed": [
+   "max_water_mm"
+  ],
+  "coef_functional": {
+   "max_cooler_mm": [
+    -0.0034,
+    0.0018
+   ],
+   "max_gpu_mm": [
+    0.0027,
+    0.0015
+   ],
+   "max_water_mm": [
+    0.0017,
+    0.0015
+   ],
+   "size_ATX": [
+    -0.0127,
+    0.2293
+   ],
+   "size_E-ATX": [
+    0.209,
+    0.0693
+   ],
+   "size_ITX": [
+    -0.228,
+    0.2511
+   ],
+   "size_M-ATX": [
+    -0.4601,
+    0.2373
+   ],
+   "missing_max_water_mm": [
+    -0.6316,
+    0.1788
+   ]
+  }
+ },
+ "風冷": {
+  "valid": false,
+  "form_chosen": "ML",
+  "lambda_ml": [
+   0.4,
+   1.0
+  ],
+  "groupcv_ml_lnprice": 0.375,
+  "groupcv_by_form": {
+   "ML": 0.375,
+   "log-log": 0.079,
+   "semi-log": -0.136,
+   "linear": -158.48
+  },
+  "n": 28,
+  "varieties": 28,
+  "families": 13,
+  "params": 12,
+  "lambda_y": 0.4,
+  "lambda_x": 1.0,
+  "lr_tests": {
+   "log-log (0,0)": [
+    2.51,
+    0.2849
+   ],
+   "semi-log (0,1)": [
+    2.43,
+    0.297
+   ],
+   "linear (1,1)": [
+    8.07,
+    0.0177
+   ]
+  },
+  "r2_transformed": 0.958,
+  "r2_lnprice": 0.944,
+  "r2_groupcv_transformed": 0.656,
+  "r2_groupcv_lnprice": 0.375,
+  "cook_flagged": 4,
+  "rank_stability_without_flagged": 0.899,
+  "vif": {
+   "heat_pipes": 4.7,
+   "rated_tdp": 5.4
+  },
+  "missing_imputed": [
+   "heat_pipes"
+  ],
+  "coef_functional": {
+   "heat_pipes": [
+    2.5659,
+    0.3232
+   ],
+   "rated_tdp": [
+    0.011,
+    0.0121
+   ],
+   "type_下吹式": [
+    2.2273,
+    0.9374
+   ],
+   "type_單塔": [
+    -5.0731,
+    0.5164
+   ],
+   "missing_heat_pipes": [
+    -6.0622,
+    0.5263
+   ]
+  }
+ },
+ "記憶體": {
+  "valid": true,
+  "form_chosen": "ML",
+  "lambda_ml": [
+   -0.0,
+   -0.0
+  ],
+  "groupcv_ml_lnprice": 0.982,
+  "groupcv_by_form": {
+   "ML": 0.982,
+   "log-log": 0.982,
+   "semi-log": 0.903,
+   "linear": 0.743
+  },
+  "n": 76,
+  "varieties": 73,
+  "families": 39,
+  "params": 14,
+  "lambda_y": -0.0,
+  "lambda_x": -0.0,
+  "lr_tests": {
+   "log-log (0,0)": [
+    0.0,
+    1.0
+   ],
+   "semi-log (0,1)": [
+    125.61,
+    0.0
+   ],
+   "linear (1,1)": [
+    116.88,
+    0.0
+   ]
+  },
+  "r2_transformed": 0.989,
+  "r2_lnprice": 0.989,
+  "r2_groupcv_transformed": 0.982,
+  "r2_groupcv_lnprice": 0.982,
+  "cook_flagged": 3,
+  "rank_stability_without_flagged": 1.0,
+  "vif": {
+   "capacity_gb": 2.3,
+   "cas_latency": 9.8,
+   "speed_mts": 36.9
+  },
+  "missing_imputed": [
+   "cas_latency"
+  ],
+  "coef_functional": {
+   "capacity_gb": [
+    0.8663,
+    0.0169
+   ],
+   "cas_latency": [
+    0.0448,
+    0.0591
+   ],
+   "speed_mts": [
+    0.6072,
+    0.1656
+   ],
+   "ddr5": [
+    0.0416,
+    0.1125
+   ],
+   "dual": [
+    0.0591,
+    0.0236
+   ],
+   "missing_cas_latency": [
+    -0.0781,
+    0.0564
+   ]
+  }
+ },
+ "CPU": {
+  "valid": true,
+  "form_chosen": "ML",
+  "lambda_ml": [
+   -0.6,
+   -0.6
+  ],
+  "groupcv_ml_lnprice": 0.812,
+  "groupcv_by_form": {
+   "ML": 0.812,
+   "log-log": 0.805,
+   "semi-log": 0.76,
+   "linear": 0.732
+  },
+  "n": 34,
+  "varieties": 34,
+  "families": 34,
+  "params": 4,
+  "lambda_y": -0.6,
+  "lambda_x": -0.6,
+  "lr_tests": {
+   "log-log (0,0)": [
+    4.53,
+    0.104
+   ],
+   "semi-log (0,1)": [
+    12.51,
+    0.0019
+   ],
+   "linear (1,1)": [
+    28.67,
+    0.0
+   ]
+  },
+  "r2_transformed": 0.871,
+  "r2_lnprice": 0.851,
+  "r2_groupcv_transformed": 0.839,
+  "r2_groupcv_lnprice": 0.812,
+  "cook_flagged": 0,
+  "rank_stability_without_flagged": 1.0,
+  "vif": {
+   "benchmark": 1.1
+  },
+  "missing_imputed": [],
+  "coef_functional": {
+   "benchmark": [
+    2.5196,
+    0.125
+   ],
+   "igpu": [
+    0.0009,
+    0.0004
+   ]
+  }
+ },
+ "GPU": {
+  "valid": true,
+  "form_chosen": "ML",
+  "lambda_ml": [
+   -0.1,
+   0.8
+  ],
+  "groupcv_ml_lnprice": 0.975,
+  "groupcv_by_form": {
+   "ML": 0.975,
+   "log-log": 0.791,
+   "semi-log": 0.975,
+   "linear": -192.1
+  },
+  "n": 238,
+  "varieties": 226,
+  "families": 84,
+  "params": 16,
+  "lambda_y": -0.1,
+  "lambda_x": 0.8,
+  "lr_tests": {
+   "log-log (0,0)": [
+    462.11,
+    0.0
+   ],
+   "semi-log (0,1)": [
+    4.46,
+    0.1074
+   ],
+   "linear (1,1)": [
+    578.01,
+    0.0
+   ]
+  },
+  "r2_transformed": 0.982,
+  "r2_lnprice": 0.981,
+  "r2_groupcv_transformed": 0.976,
+  "r2_groupcv_lnprice": 0.975,
+  "cook_flagged": 15,
+  "rank_stability_without_flagged": 1.0,
+  "vif": {
+   "benchmark": 3.3,
+   "vram_gb": 3.6
+  },
+  "missing_imputed": [],
+  "coef_functional": {
+   "benchmark": [
+    0.0002,
+    0.0
+   ],
+   "vram_gb": [
+    0.0197,
+    0.0022
+   ]
+  }
+ }
+}

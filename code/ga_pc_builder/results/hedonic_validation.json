@@ -1,0 +1,120 @@
+{
+ "CPU": {
+  "n": 34,
+  "chips": 33,
+  "form": "ML",
+  "lambda": [
+   -0.1,
+   -0.0
+  ],
+  "groupcv_lnprice": 0.863,
+  "spearman_Q_bench": 0.868,
+  "spearman_price_bench": 0.873,
+  "pearson_lnQ_lnbench": 0.903,
+  "pearson_lnprice_lnbench": 0.896,
+  "chip_spearman_Q_bench": 0.869,
+  "chip_spearman_price_bench": 0.874,
+  "coef_functional": {
+   "boost_ghz": [
+    0.4317,
+    0.2527
+   ],
+   "cache_mb": [
+    0.0847,
+    0.0535
+   ],
+   "cores": [
+    -0.8687,
+    0.3225
+   ],
+   "tdp_w": [
+    -0.1022,
+    0.0629
+   ],
+   "threads": [
+    1.3697,
+    0.3746
+   ],
+   "igpu": [
+    0.061,
+    0.0216
+   ],
+   "sock_AM4": [
+    -0.7503,
+    0.2514
+   ],
+   "sock_AM5": [
+    -0.5463,
+    0.2744
+   ],
+   "sock_LGA1700": [
+    -0.5948,
+    0.182
+   ],
+   "missing_cache_mb": [
+    -0.0725,
+    0.0541
+   ]
+  }
+ },
+ "GPU": {
+  "n": 238,
+  "chips": 18,
+  "form": "ML",
+  "lambda": [
+   -0.1,
+   0.2
+  ],
+  "groupcv_lnprice": 0.988,
+  "spearman_Q_bench": 0.971,
+  "spearman_price_bench": 0.961,
+  "pearson_lnQ_lnbench": 0.882,
+  "pearson_lnprice_lnbench": 0.878,
+  "chip_spearman_Q_bench": 0.981,
+  "chip_spearman_price_bench": 0.988,
+  "within_chip_sd_lnQ": 0.0158,
+  "within_chip_sd_lnprice": 0.0725,
+  "coef_functional": {
+   "boost_mhz": [
+    0.0251,
+    0.0064
+   ],
+   "shaders": [
+    0.0615,
+    0.0051
+   ],
+   "tgp_w": [
+    0.0036,
+    0.0103
+   ],
+   "vram_gb": [
+    0.0702,
+    0.006
+   ],
+   "arch_Arc": [
+    0.7173,
+    0.0755
+   ],
+   "arch_GT": [
+    0.0995,
+    0.0361
+   ],
+   "arch_RTX30": [
+    -0.1057,
+    0.0414
+   ],
+   "arch_RTX50": [
+    -0.0952,
+    0.0182
+   ],
+   "arch_RX7000": [
+    -0.1325,
+    0.0195
+   ],
+   "gddr7": [
+    -0.0402,
+    0.009
+   ]
+  }
+ }
+}

@@ -27,7 +27,7 @@ sys.path.insert(0, str(HERE))
 from config import DB_PATH, MATCHED_FILES  # noqa: E402
 from data.catalog import PartCatalog  # noqa: E402
 from data.sentiment import SentimentScorer  # noqa: E402
-from data.hedonic import attach_spec_values  # noqa: E402
+from data.hedonic import attach_spec_values, attach_efficiency  # noqa: E402
 from advisor.compatibility import CompatibilityChecker  # noqa: E402
 from core.ga_engine import GARecommender  # noqa: E402
 
@@ -35,11 +35,15 @@ CATS = ["CPU", "GPU", "主機板", "記憶體", "SSD", "電源", "機殼", "風�
 _res = {}
 
 
+FRONTIER = os.environ.get("HEDONIC_FRONTIER", "vrs")   # vrs（主要）或 fdh（敏感度分析）
+
+
 def _init():
     import io, contextlib
     with contextlib.redirect_stdout(io.StringIO()):
         cat = PartCatalog(DB_PATH)
         attach_spec_values(cat, verbose=False)   # 寫 spec_value；perf_basis=price 時用不到
+        attach_efficiency(cat, FRONTIER)         # 寫 efficiency（Farrell/BCC）與 quality
         _res["catalog"] = cat
         _res["scorer"] = SentimentScorer(MATCHED_FILES, DB_PATH)
         _res["checker"] = CompatibilityChecker()
@@ -60,14 +64,17 @@ def run_one(job):
         ga_p = GARecommender(catalog=_res["catalog"], scorer=_res["scorer"], checker=_res["checker"],
                              usage=job["usage"], budget=job["budget"], perf_basis="price")
         ga_h = GARecommender(catalog=_res["catalog"], scorer=_res["scorer"], checker=_res["checker"],
-                             usage=job["usage"], budget=job["budget"], perf_basis="hedonic")
+                             usage=job["usage"], budget=job["budget"], perf_basis="hedonic", cp_mode="dea")
     row = {"basis": job["basis"], "cp": job["cp"], "budget": job["budget"], "seed": job["seed"],
            "total": best.total_price, "fitness": round(ga.fitness(best), 4),
            "perf_price": round(ga_p._perf_score(best), 4),
            "perf_hedonic": round(ga_h._perf_score(best), 4),
            "cp_price": round(ga_p._cp_score(best), 4),
-           "value_ratio": round(sum(p.specs["spec_value"] for p in best.parts.values() if p.specs.get("spec_value"))
-                                / sum(p.price for p in best.parts.values() if p.specs.get("spec_value")), 3),
+           # 共同尺度：不論用哪種設定跑出來，都用同一把尺量
+           "cost_eff": round(ga_h._cp_dea(best), 4),           # Farrell 成本效率（整機）
+           "value_ratio": round(ga_h._cp_value(best) + 0.5, 3),  # Σ規格價值/Σ價格
+           "sentiment": round(ga_h._sentiment_score(best), 4),
+           "secondary": sum(best.parts[c].price for c in ("機殼", "風冷", "電源") if c in best.parts),
            "cpu_bench": best.parts["CPU"].specs.get("benchmark"),
            "gpu_bench": best.parts["GPU"].specs.get("benchmark")}
     for c in CATS:

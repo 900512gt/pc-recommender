@@ -117,10 +117,15 @@ class GARecommender:
         #   "ratio"   → 效能 / (總價/預算)，舊做法；少花錢 CP 就變高，會鼓勵沒花完預算
         #   "noUnder" → 預算內不因少花錢加分（比例下限 1），只有超支才扣
         #               （副作用：預算內 CP = 效能，等於效能算兩次）
-        #   "hedonic" → 物超所值程度：Σ規格價值 / Σ實際價格（data/hedonic.py），
-        #               跟花多少錢無關，只看買到的零件是不是比同規格便宜
-        #   "mix"     → noUnder 與 hedonic 各半
-        assert cp_mode in ("ratio", "noUnder", "hedonic", "mix"), "cp_mode 必須是 ratio、noUnder、hedonic 或 mix"
+        #   "residual"→ Σ規格價值 / Σ實際價格（hedonic 預測價對實際價，Triplett 的品質調整價格比），
+        #               "hedonic" 是同一個的舊名稱
+        #   "dea"     → Farrell 成本效率：整機用「同品質的最低可能價格」買齊 / 實際花費，
+        #               各零件效率來自同類別的 BCC 價格—品質前緣（data/hedonic.attach_efficiency）
+        #   "mix"     → noUnder 與 residual 各半
+        #   "none"    → 不算 CP，w_cp 平分給效能與口碑
+        if cp_mode == "hedonic":
+            cp_mode = "residual"
+        assert cp_mode in ("ratio", "noUnder", "residual", "dea", "mix", "none"), f"未知的 cp_mode：{cp_mode}"
         self.cp_mode     = cp_mode
         self.pop_size    = pop_size
         self.generations = generations
@@ -142,6 +147,11 @@ class GARecommender:
         self.weights     = dict(USAGE_WEIGHTS[usage])
         if custom_weights:
             self._apply_custom_weights(custom_weights)
+        if self.cp_mode == "none":
+            half = self.weights["w_cp"] / 2
+            self.weights["w_perf"] += half
+            self.weights["w_sent"] += half
+            self.weights["w_cp"] = 0.0
         # 合法性修補：交叉／突變／隨機產生之後，把個體修成「每個必選類別剛好一個、
         # 散熱器剛好一個、CPU-主機板-記憶體-散熱器腳位與世代相容」。
         # 相容性懲罰仍保留在 fitness 裡當後備（repair=False 時就回到原本只靠懲罰的行為）。
@@ -222,7 +232,8 @@ class GARecommender:
             if prices:
                 self._price_range[cat] = (min(prices), max(prices))
             if self.perf_basis == "hedonic":
-                vals = [p.specs["spec_value"] for p in parts if p.specs.get("spec_value")]
+                # 品質值：hedonic 品質指數或散熱器解熱瓦數（data.hedonic.attach_efficiency 寫入）
+                vals = [p.specs["quality"] for p in parts if p.specs.get("quality")]
                 if vals:
                     self._spec_range[cat] = (min(vals), max(vals))
 
@@ -601,9 +612,13 @@ class GARecommender:
             if benchmark > 0 and cat in self._bench_range:
                 bmin, bmax = self._bench_range[cat]
                 norm = 1.0 if bmax <= bmin else (benchmark - bmin) / (bmax - bmin)
-            elif cat in self._spec_range and part.specs.get("spec_value"):
+            elif cat in self._spec_range and part.specs.get("quality"):
                 smin, smax = self._spec_range[cat]
-                norm = 1.0 if smax <= smin else (part.specs["spec_value"] - smin) / (smax - smin)
+                norm = 1.0 if smax <= smin else (part.specs["quality"] - smin) / (smax - smin)
+            elif self.perf_basis == "hedonic":
+                # hedonic 驗證不通過的類別（規格無法可靠解釋價格，例如機殼）：不分高低，
+                # 不再退回「越貴越好」
+                norm = 0.5
             else:
                 pmin, pmax = self._price_range.get(cat, (0.0, 0.0))
                 if pmax <= pmin:
@@ -642,8 +657,12 @@ class GARecommender:
     def _cp_score(self, build: Build) -> float:
         if self.cp_mode == "mix":
             return 0.5 * self._cp_value(build) + 0.5 * self._cp_ratio(build, floor=True)
-        if self.cp_mode == "hedonic":
+        if self.cp_mode == "residual":
             return self._cp_value(build)
+        if self.cp_mode == "dea":
+            return self._cp_dea(build)
+        if self.cp_mode == "none":
+            return 0.0
         return self._cp_ratio(build, floor=self.cp_mode == "noUnder")
 
     def _cp_value(self, build: Build) -> float:
@@ -658,6 +677,17 @@ class GARecommender:
             return 0.5
         # 比值 1 = 價格剛好等於規格行情；0.5 以下（溢價一倍）給 0，1.5 以上給 1
         return max(0.0, min(spec / paid - 0.5, 1.0))
+
+    def _cp_dea(self, build: Build) -> float:
+        """Farrell 成本效率（整機）：Σ 各零件「同品質最低可能價格」/ Σ 實際價格 = 以成本占比加權的 θ。
+        沒有效率值的零件（品質指標驗證不通過的類別）不納入。需先呼叫 data.hedonic.attach_efficiency。"""
+        frontier_cost = paid = 0.0
+        for part in build.parts.values():
+            th = part.specs.get("efficiency")
+            if th is not None and part.price > 0:
+                frontier_cost += th * part.price
+                paid += part.price
+        return frontier_cost / paid if paid > 0 else 0.5
 
     def _cp_ratio(self, build: Build, floor: bool) -> float:
         perf = self._perf_score(build)
