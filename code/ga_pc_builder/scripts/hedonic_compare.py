@@ -66,6 +66,8 @@ def run_one(job):
            "perf_price": round(ga_p._perf_score(best), 4),
            "perf_hedonic": round(ga_h._perf_score(best), 4),
            "cp_price": round(ga_p._cp_score(best), 4),
+           "value_ratio": round(sum(p.specs["spec_value"] for p in best.parts.values() if p.specs.get("spec_value"))
+                                / sum(p.price for p in best.parts.values() if p.specs.get("spec_value")), 3),
            "cpu_bench": best.parts["CPU"].specs.get("benchmark"),
            "gpu_bench": best.parts["GPU"].specs.get("benchmark")}
     for c in CATS:
@@ -84,13 +86,15 @@ def main():
     ap.add_argument("--usage", default="遊戲")
     ap.add_argument("--pop", type=int, default=300)
     ap.add_argument("--gens", type=int, default=300)
-    ap.add_argument("--cp", nargs="+", default=["ratio"], choices=["ratio", "noUnder"])
+    ap.add_argument("--configs", nargs="+", default=["price:ratio", "hedonic:ratio"],
+                    help="perf_basis:cp_mode，例如 price:ratio hedonic:noUnder hedonic:hedonic")
     ap.add_argument("--tag", default="")
     ap.add_argument("--workers", type=int, default=os.cpu_count())
     a = ap.parse_args()
 
-    jobs = [dict(basis=b, budget=bud, seed=s, usage=a.usage, pop=a.pop, gens=a.gens, cp=cp)
-            for cp in a.cp for bud in a.budgets for s in range(a.seeds) for b in ("price", "hedonic")]
+    jobs = [dict(basis=cfg.split(":")[0], cp=cfg.split(":")[1], budget=bud, seed=s,
+                 usage=a.usage, pop=a.pop, gens=a.gens)
+            for cfg in a.configs for bud in a.budgets for s in range(a.seeds)]
     with ProcessPoolExecutor(a.workers, initializer=_init) as ex:
         rows = list(ex.map(run_one, jobs))
 

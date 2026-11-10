@@ -48,6 +48,25 @@ def _reg(cat):
     return deco
 
 
+@_reg("CPU")
+def _cpu(p):
+    # 只用在 CP（物超所值）；效能分數仍直接用跑分。
+    # 快取放進功能規格，否則 X3D 的遊戲效能優勢 PassMark 看不到，會被當成溢價。
+    s, n = p.specs, p.name
+    f = {"lnbench": np.log(_num(s.get("benchmark"), 20000)),
+         "lncache": np.log(_num(s.get("cache_mb"), np.nan)),
+         "igpu": int(s.get("igpu") == "有")}
+    return f, {"box": int("盒裝" in n)}
+
+
+@_reg("GPU")
+def _gpu(p):
+    s, n = p.specs, p.name
+    f = {"lnbench": np.log(_num(s.get("benchmark"), 20000)), "vram": _num(s.get("vram_gb"), 8)}
+    return f, {"mk_" + _maker(n.replace("[搭機優惠] ", "").replace("[限搭機] ", "")): 1,
+               "white": _white(n), "rgb": _rgb(n), "oc": int(bool(re.search(r"\bOC\b", n)))}
+
+
 @_reg("主機板")
 def _mb(p):
     s, n = p.specs, p.name
@@ -145,7 +164,8 @@ def _fit_category(parts, fn, alpha: float = 1.0):
 
 
 def attach_spec_values(catalog, min_parts: int = 15, verbose: bool = True) -> dict:
-    """在 catalog 每個非跑分零件的 specs 寫入 spec_value。回傳各類別的模型摘要。"""
+    """在 catalog 每個零件的 specs 寫入 spec_value（元）。回傳各類別的模型摘要。
+    CPU/GPU 的 spec_value 只給 CP 用（cp_mode="hedonic"），效能分數仍用跑分。"""
     report = {}
     for cat, fn in _SPEC_FUNCS.items():
         parts = [p for p in catalog.get(cat) if p.price > 0]

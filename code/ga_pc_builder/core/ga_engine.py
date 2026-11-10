@@ -116,7 +116,11 @@ class GARecommender:
         # CP 值的算法：
         #   "ratio"   → 效能 / (總價/預算)，舊做法；少花錢 CP 就變高，會鼓勵沒花完預算
         #   "noUnder" → 預算內不因少花錢加分（比例下限 1），只有超支才扣
-        assert cp_mode in ("ratio", "noUnder"), "cp_mode 必須是 ratio 或 noUnder"
+        #               （副作用：預算內 CP = 效能，等於效能算兩次）
+        #   "hedonic" → 物超所值程度：Σ規格價值 / Σ實際價格（data/hedonic.py），
+        #               跟花多少錢無關，只看買到的零件是不是比同規格便宜
+        #   "mix"     → noUnder 與 hedonic 各半
+        assert cp_mode in ("ratio", "noUnder", "hedonic", "mix"), "cp_mode 必須是 ratio、noUnder、hedonic 或 mix"
         self.cp_mode     = cp_mode
         self.pop_size    = pop_size
         self.generations = generations
@@ -636,9 +640,29 @@ class GARecommender:
         return float(np.mean(scores)) if scores else 0.5
 
     def _cp_score(self, build: Build) -> float:
+        if self.cp_mode == "mix":
+            return 0.5 * self._cp_value(build) + 0.5 * self._cp_ratio(build, floor=True)
+        if self.cp_mode == "hedonic":
+            return self._cp_value(build)
+        return self._cp_ratio(build, floor=self.cp_mode == "noUnder")
+
+    def _cp_value(self, build: Build) -> float:
+        """物超所值程度：Σ規格價值 / Σ實際價格（需先呼叫 data.hedonic.attach_spec_values）"""
+        spec = paid = 0.0
+        for part in build.parts.values():
+            sv = part.specs.get("spec_value")
+            if sv and part.price > 0:
+                spec += sv
+                paid += part.price
+        if paid <= 0:
+            return 0.5
+        # 比值 1 = 價格剛好等於規格行情；0.5 以下（溢價一倍）給 0，1.5 以上給 1
+        return max(0.0, min(spec / paid - 0.5, 1.0))
+
+    def _cp_ratio(self, build: Build, floor: bool) -> float:
         perf = self._perf_score(build)
         ratio = build.total_price / max(self.budget, 1)
-        if self.cp_mode == "noUnder":
+        if floor:
             ratio = max(ratio, 1.0)
         return min(perf / ratio, 1.0) if ratio > 0 else 0.0
 
