@@ -1,0 +1,30 @@
+{
+ "主機板": {
+  "spearman_Q_price": 0.956,
+  "spearman_Q_vs_fit_with_brand": 0.97,
+  "spearman_vrs_fdh": 0.842,
+  "frontier_vrs": 10,
+  "frontier_fdh": 35
+ },
+ "SSD": {
+  "spearman_Q_price": 0.944,
+  "spearman_Q_vs_fit_with_brand": 0.947,
+  "spearman_vrs_fdh": 0.866,
+  "frontier_vrs": 6,
+  "frontier_fdh": 15
+ },
+ "電源": {
+  "spearman_Q_price": 0.84,
+  "spearman_Q_vs_fit_with_brand": 0.851,
+  "spearman_vrs_fdh": 0.86,
+  "frontier_vrs": 8,
+  "frontier_fdh": 19
+ },
+ "記憶體": {
+  "spearman_Q_price": 0.978,
+  "spearman_Q_vs_fit_with_brand": 0.987,
+  "spearman_vrs_fdh": 0.74,
+  "frontier_vrs": 6,
+  "frontier_fdh": 28
+ }
+}
