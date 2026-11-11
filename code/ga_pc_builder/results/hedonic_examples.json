@@ -1,0 +1,680 @@
+{
+ "validation": {
+  "gpu_same_chip": {
+   "RTX 5070 12G": {
+    "benchmark": 28754.0,
+    "cards": 25,
+    "examples": [
+     {
+      "name": "[搭機優惠] ZOTAC RTX5070 Twin Edge OC(2542MH",
+      "price": 20990,
+      "Q": 23415
+     },
+     {
+      "name": "技嘉 RTX5070 EAGLE OC SFF 12G(2587MHz/29cm",
+      "price": 23990,
+      "Q": 23551
+     },
+     {
+      "name": "技嘉 AORUS RTX5070 MASTER 12G(2715MHz/32cm",
+      "price": 27990,
+      "Q": 23933
+     }
+    ],
+    "price_spread": 0.333,
+    "Q_spread": 0.026
+   },
+   "RTX 5070 Ti 16G": {
+    "benchmark": 32424.0,
+    "cards": 16,
+    "examples": [
+     {
+      "name": "微星 RTX5070Ti 16G VENTUS 3X OC(2497MHz/31",
+      "price": 31990,
+      "Q": 37898
+     },
+     {
+      "name": "技嘉 RTX5070Ti EAGLE OC SFF 16G(2542MHz/31",
+      "price": 34990,
+      "Q": 38133
+     },
+     {
+      "name": "華碩 ROG-STRIX-RTX5070TI-O16G-GAMING(2625M",
+      "price": 39990,
+      "Q": 38561
+     }
+    ],
+    "price_spread": 0.25,
+    "Q_spread": 0.02
+   }
+  },
+  "gpu_chips": [
+   {
+    "chip": "GT 710",
+    "benchmark": 619.0,
+    "median_price": 2290.0,
+    "median_Q": 2339
+   },
+   {
+    "chip": "GT 730",
+    "benchmark": 824.0,
+    "median_price": 3090.0,
+    "median_Q": 3126
+   },
+   {
+    "chip": "GT 1030",
+    "benchmark": 2400.0,
+    "median_price": 3490.0,
+    "median_Q": 3471
+   },
+   {
+    "chip": "RTX 3050-6G",
+    "benchmark": 10761.0,
+    "median_price": 7990.0,
+    "median_Q": 7655
+   },
+   {
+    "chip": "RTX 3050",
+    "benchmark": 12496.0,
+    "median_price": 7989.0,
+    "median_Q": 9478
+   },
+   {
+    "chip": "Intel Arc B580",
+    "benchmark": 12930.0,
+    "median_price": 8990.0,
+    "median_Q": 9610
+   },
+   {
+    "chip": "RTX 5050 8G",
+    "benchmark": 17159.0,
+    "median_price": 10990.0,
+    "median_Q": 10906
+   },
+   {
+    "chip": "AMD Radeon RX 7650 GRE",
+    "benchmark": 18413.0,
+    "median_price": 9490.0,
+    "median_Q": 8585
+   },
+   {
+    "chip": "AMD Radeon RX 9060 XT",
+    "benchmark": 20129.0,
+    "median_price": 15990.0,
+    "median_Q": 15662
+   },
+   {
+    "chip": "RTX 5060 8G",
+    "benchmark": 20803.0,
+    "median_price": 13490.0,
+    "median_Q": 13455
+   },
+   {
+    "chip": "RTX 5060 Ti 8G",
+    "benchmark": 22251.0,
+    "median_price": 16490.0,
+    "median_Q": 15945
+   },
+   {
+    "chip": "RTX 5060 Ti 16G",
+    "benchmark": 22648.0,
+    "median_price": 19490.0,
+    "median_Q": 19682
+   },
+   {
+    "chip": "AMD Radeon RX 9070 GRE",
+    "benchmark": 24025.0,
+    "median_price": 20590.0,
+    "median_Q": 18741
+   },
+   {
+    "chip": "AMD Radeon RX 9070",
+    "benchmark": 25402.0,
+    "median_price": 24740.0,
+    "median_Q": 22757
+   },
+   {
+    "chip": "AMD Radeon RX 9070 XT",
+    "benchmark": 26904.0,
+    "median_price": 26990.0,
+    "median_Q": 27437
+   },
+   {
+    "chip": "RTX 5070 12G",
+    "benchmark": 28754.0,
+    "median_price": 23990.0,
+    "median_Q": 23460
+   },
+   {
+    "chip": "RTX 5070 Ti 16G",
+    "benchmark": 32424.0,
+    "median_price": 34990.0,
+    "median_Q": 38094
+   },
+   {
+    "chip": "RTX 5080 16G",
+    "benchmark": 35696.0,
+    "median_price": 47990.0,
+    "median_Q": 48181
+   }
+  ],
+  "cpu_rank": [
+   {
+    "name": "AMD R9 9950X3D代理盒裝【16核/32緒",
+    "benchmark": 70202.0,
+    "rank_bench": 1,
+    "Q": 21058,
+    "rank_Q": 1,
+    "price": 22900
+   },
+   {
+    "name": "Intel Core Ultra 9 285K【24",
+    "benchmark": 67286.0,
+    "rank_bench": 2,
+    "Q": 17380,
+    "rank_Q": 3,
+    "price": 18600
+   },
+   {
+    "name": "Intel Core Ultra 7 265K【20",
+    "benchmark": 58701.0,
+    "rank_bench": 4,
+    "Q": 12630,
+    "rank_Q": 8,
+    "price": 10200
+   },
+   {
+    "name": "Intel Core Ultra 5 245KF【1",
+    "benchmark": 43230.0,
+    "rank_bench": 8,
+    "Q": 6259,
+    "rank_Q": 19,
+    "price": 6300
+   },
+   {
+    "name": "AMD R7 9800X3D代理盒裝【8核/16緒】",
+    "benchmark": 39976.0,
+    "rank_bench": 13,
+    "Q": 13382,
+    "rank_Q": 5,
+    "price": 15600
+   },
+   {
+    "name": "AMD R5 7500F MPK(含風扇)【6核/1",
+    "benchmark": 26589.0,
+    "rank_bench": 22,
+    "Q": 5770,
+    "rank_Q": 21,
+    "price": 4690
+   },
+   {
+    "name": "Intel i5-14400F【10核/16緒】2.",
+    "benchmark": 25554.0,
+    "rank_bench": 23,
+    "Q": 4804,
+    "rank_Q": 27,
+    "price": 5500
+   },
+   {
+    "name": "AMD R5 3400G 代理盒裝【4核/8緒】3.",
+    "benchmark": 9188.0,
+    "rank_bench": 34,
+    "Q": 2221,
+    "rank_Q": 34,
+    "price": 2099
+   }
+  ]
+ },
+ "brand_control": [
+  {
+   "name": "海韻 FOCUS GX-850(850W) 雙8/金牌/全模組/10年保",
+   "price": 3490,
+   "Q": 3509,
+   "theta": 0.74
+  },
+  {
+   "name": "海韻 FOCUS GX-850 ATX3(850W) 雙8/金牌/全模組/ATX",
+   "price": 4290,
+   "Q": 4115,
+   "theta": 0.69
+  },
+  {
+   "name": "海韻 FOCUS GX-850 ATX3(850W) 白色版 雙8/金牌/全模組",
+   "price": 4490,
+   "Q": 4115,
+   "theta": 0.66
+  },
+  {
+   "name": "振華 LEADEX III 750W 黑色 雙8/白金/全模/ATX3.1(PC",
+   "price": 3390,
+   "Q": 4610,
+   "theta": 0.97
+  },
+  {
+   "name": "振華 LEADEX III 850W 黑色 雙8/白金/全模/ATX3.1(PC",
+   "price": 3790,
+   "Q": 5396,
+   "theta": 1.0
+  },
+  {
+   "name": "華碩 ROG LOKI 750W 雙8/白金/ATX3.0(PCIe 5.0)/",
+   "price": 5990,
+   "Q": 4526,
+   "theta": 0.54
+  },
+  {
+   "name": "華碩 ROG LOKI 850W 雙8/白金/ATX3.0(PCIe 5.0)/",
+   "price": 6990,
+   "Q": 5293,
+   "theta": 0.53
+  }
+ ],
+ "cv": {
+  "主機板": {
+   "in_sample_r2": 0.962,
+   "random_cv_r2": 0.943,
+   "group_cv_r2": 0.939,
+   "by_form": {
+    "ML": 0.939,
+    "log-log": 0.906,
+    "semi-log": 0.936,
+    "linear": -56.386
+   },
+   "lr_tests": {
+    "log-log (0,0)": [
+     179.8,
+     0.0
+    ],
+    "semi-log (0,1)": [
+     56.56,
+     0.0
+    ],
+    "linear (1,1)": [
+     639.44,
+     0.0
+    ]
+   },
+   "form": "ML"
+  },
+  "電源": {
+   "in_sample_r2": 0.98,
+   "random_cv_r2": 0.969,
+   "group_cv_r2": 0.869,
+   "by_form": {
+    "ML": 0.869,
+    "log-log": 0.893,
+    "semi-log": 0.837,
+    "linear": 0.059
+   },
+   "lr_tests": {
+    "log-log (0,0)": [
+     12.46,
+     0.002
+    ],
+    "semi-log (0,1)": [
+     6.45,
+     0.0397
+    ],
+    "linear (1,1)": [
+     37.26,
+     0.0
+    ]
+   },
+   "form": "ML"
+  },
+  "機殼": {
+   "in_sample_r2": 0.841,
+   "random_cv_r2": 0.763,
+   "group_cv_r2": -0.36,
+   "by_form": {
+    "ML": -2171.84,
+    "log-log": -0.738,
+    "semi-log": -0.36,
+    "linear": -393.559
+   },
+   "lr_tests": {
+    "log-log (0,0)": [
+     2.95,
+     0.2293
+    ],
+    "semi-log (0,1)": [
+     3.47,
+     0.1768
+    ],
+    "linear (1,1)": [
+     84.55,
+     0.0
+    ]
+   },
+   "form": "semi-log"
+  },
+  "風冷": {
+   "in_sample_r2": 0.944,
+   "random_cv_r2": 0.837,
+   "group_cv_r2": 0.375,
+   "by_form": {
+    "ML": 0.375,
+    "log-log": 0.079,
+    "semi-log": -0.136,
+    "linear": -158.48
+   },
+   "lr_tests": {
+    "log-log (0,0)": [
+     2.51,
+     0.2849
+    ],
+    "semi-log (0,1)": [
+     2.43,
+     0.297
+    ],
+    "linear (1,1)": [
+     8.07,
+     0.0177
+    ]
+   },
+   "form": "ML"
+  }
+ },
+ "case_worst": [
+  {
+   "name": "HYTE X50 Air 白 顯卡長43/CPU高17/全覆",
+   "price": 3890.0,
+   "predicted_out_of_sample": 15982
+  },
+  {
+   "name": "HYTE X50 Air 黑 顯卡長43/CPU高17/全覆",
+   "price": 3890.0,
+   "predicted_out_of_sample": 15753
+  },
+  {
+   "name": "酷碼 Q300L V2 (黑) 顯卡長36/CPU高15.9",
+   "price": 1790.0,
+   "predicted_out_of_sample": 472
+  },
+  {
+   "name": "酷碼 Q300L V2 (白) 顯卡長36/CPU高15.9",
+   "price": 1790.0,
+   "predicted_out_of_sample": 474
+  }
+ ],
+ "cooler_case": {
+  "cooler": [
+   {
+    "name": "利民 Peerless Assassin 120 V3 黑/6導管(6m",
+    "price": 1190,
+    "capacity_w": 280.0,
+    "theta": 1.0
+   },
+   {
+    "name": "酷碼 Hyper 212 Spectrum V3 散熱器/4導管/高15",
+    "price": 590,
+    "capacity_w": 150.0,
+    "theta": 1.0
+   },
+   {
+    "name": "貓頭鷹 NH-D15S /6導管/NF-A15 PWM風扇/雙塔/非對稱",
+    "price": 3275,
+    "capacity_w": 250.0,
+    "theta": 0.31
+   },
+   {
+    "name": "九州風神 ASSASSIN IV 阿薩辛4 黑/7導管/雙塔反葉扇/高1",
+    "price": 3290,
+    "capacity_w": 280.0,
+    "theta": 0.36
+   },
+   {
+    "name": "九州風神 ASSASSIN IV VC VISION/7導管/雙塔雙扇/",
+    "price": 4290,
+    "capacity_w": 300.0,
+    "theta": 1.0
+   }
+  ],
+  "case": [
+   {
+    "name": "NZXT H5 Flow(2024) 黑 顯卡長41/CPU高17/玻璃",
+    "price": 2490,
+    "theta": 0.44
+   },
+   {
+    "name": "HYTE Y70 touch infinite 黑 顯卡長42.2/U高",
+    "price": 12490,
+    "theta": 0.09
+   },
+   {
+    "name": "Montech X1 黑 顯卡長30.5/CPU高16.5/網孔面板/玻",
+    "price": 1090,
+    "theta": 1.0
+   },
+   {
+    "name": "Fractal Design Meshify 3 黑(靜音) 顯卡長34",
+    "price": 5390,
+    "theta": 0.2
+   }
+  ]
+ },
+ "frontiers_gpu": [
+  {
+   "chip": "RTX 3050-6G",
+   "price": 6988,
+   "benchmark": 10761.0,
+   "vrs": 0.77,
+   "crs": 0.67,
+   "fdh": 1.0
+  },
+  {
+   "chip": "RTX 3050",
+   "price": 7988,
+   "benchmark": 12496.0,
+   "vrs": 0.75,
+   "crs": 0.68,
+   "fdh": 1.0
+  },
+  {
+   "chip": "Intel Arc B580",
+   "price": 8690,
+   "benchmark": 12930.0,
+   "vrs": 0.71,
+   "crs": 0.65,
+   "fdh": 0.92
+  },
+  {
+   "chip": "RTX 5050 8G",
+   "price": 9988,
+   "benchmark": 17159.0,
+   "vrs": 0.76,
+   "crs": 0.75,
+   "fdh": 0.8
+  },
+  {
+   "chip": "AMD Radeon RX 7650 GRE",
+   "price": 7990,
+   "benchmark": 18413.0,
+   "vrs": 1.0,
+   "crs": 1.0,
+   "fdh": 1.0
+  },
+  {
+   "chip": "AMD Radeon RX 9060 XT",
+   "price": 10990,
+   "benchmark": 20129.0,
+   "vrs": 0.92,
+   "crs": 0.79,
+   "fdh": 1.0
+  },
+  {
+   "chip": "RTX 5060 8G",
+   "price": 11988,
+   "benchmark": 20803.0,
+   "vrs": 0.92,
+   "crs": 0.75,
+   "fdh": 1.0
+  },
+  {
+   "chip": "RTX 5060 Ti 8G",
+   "price": 14988,
+   "benchmark": 22251.0,
+   "vrs": 0.86,
+   "crs": 0.64,
+   "fdh": 1.0
+  },
+  {
+   "chip": "RTX 5060 Ti 16G",
+   "price": 15490,
+   "benchmark": 22648.0,
+   "vrs": 0.86,
+   "crs": 0.63,
+   "fdh": 1.0
+  },
+  {
+   "chip": "AMD Radeon RX 9070 GRE",
+   "price": 19990,
+   "benchmark": 24025.0,
+   "vrs": 0.75,
+   "crs": 0.52,
+   "fdh": 1.0
+  },
+  {
+   "chip": "AMD Radeon RX 9070",
+   "price": 22990,
+   "benchmark": 25402.0,
+   "vrs": 0.73,
+   "crs": 0.48,
+   "fdh": 0.91
+  },
+  {
+   "chip": "AMD Radeon RX 9070 XT",
+   "price": 22990,
+   "benchmark": 26904.0,
+   "vrs": 0.81,
+   "crs": 0.51,
+   "fdh": 0.91
+  },
+  {
+   "chip": "RTX 5070 12G",
+   "price": 20990,
+   "benchmark": 28754.0,
+   "vrs": 1.0,
+   "crs": 0.59,
+   "fdh": 1.0
+  },
+  {
+   "chip": "RTX 5070 Ti 16G",
+   "price": 31990,
+   "benchmark": 32424.0,
+   "vrs": 1.0,
+   "crs": 0.44,
+   "fdh": 1.0
+  },
+  {
+   "chip": "RTX 5080 16G",
+   "price": 44990,
+   "benchmark": 35696.0,
+   "vrs": 1.0,
+   "crs": 0.34,
+   "fdh": 1.0
+  }
+ ],
+ "dea_vs_residual": {
+  "fair_by_residual_but_inefficient": [
+   {
+    "category": "主機板",
+    "name": "華碩 ROG STRIX B850-F GAMING WIFI(ATX/",
+    "price": 8990,
+    "Q": 8736,
+    "residual_ratio": 0.97,
+    "theta": 0.66
+   },
+   {
+    "category": "主機板",
+    "name": "微星 PRO Z890-S WIFI PZ 背插(ATX/LAN 2.5",
+    "price": 7590,
+    "Q": 7380,
+    "residual_ratio": 0.97,
+    "theta": 0.66
+   },
+   {
+    "category": "主機板",
+    "name": "華擎 B850 Challenger WiFi(ATX/LAN2.5G+",
+    "price": 5790,
+    "Q": 5651,
+    "residual_ratio": 0.98,
+    "theta": 0.67
+   }
+  ],
+  "pricey_by_residual_but_efficient": [
+   {
+    "category": "主機板",
+    "name": "技嘉 X870E AORUS XTREME X3D AI TOP(E-A",
+    "price": 33990,
+    "Q": 28022,
+    "residual_ratio": 0.82,
+    "theta": 1.0
+   },
+   {
+    "category": "SSD",
+    "name": "三星 Samsung 9100 PRO 8TB/PCIe 5.0 x4/",
+    "price": 53500,
+    "Q": 48745,
+    "residual_ratio": 0.91,
+    "theta": 1.0
+   }
+  ]
+ },
+ "cp_on_builds": [
+  {
+   "build": "原本（價格 + ratio）",
+   "total": 73237,
+   "parts": {
+    "CPU": "Intel Core Ultra 7 265 9500",
+    "GPU": "微星 RTX5070Ti 16G INSPI 31990",
+    "記憶體": "UMAX 單條32GB DDR5-4800/ 8888",
+    "主機板": "華擎 Z890 Pro-A WiFi(ATX 5990",
+    "SSD": "致態 ZhiTai TiPlus7100s  4999",
+    "電源": "華碩 ROG LOKI 850W 白色版 雙 7490",
+    "機殼": "Montech X1 黑 顯卡長30.5/C 1090",
+    "風冷": "九州風神 ASSASSIN IV 阿薩辛4  3290"
+   },
+   "ratio": 0.749,
+   "noUnder": 0.686,
+   "residual": 0.663,
+   "dea": 0.917
+  },
+  {
+   "build": "hedonic + noUnder",
+   "total": 79949,
+   "parts": {
+    "CPU": "Intel Core Ultra 7 265 10200",
+    "GPU": "微星 RTX5070Ti 16G INSPI 31990",
+    "記憶體": "UMAX 單條32GB DDR5-5600/ 9600",
+    "主機板": "華碩 ROG STRIX Z890-E GA 16490",
+    "SSD": "致態 ZhiTai TiPlus7100s  4999",
+    "電源": "振華 LEADEX III 850W 白色  3790",
+    "機殼": "Montech Air 1000 Silen 1690",
+    "風冷": "利民 Peerless Assassin 1 1190"
+   },
+   "ratio": 0.709,
+   "noUnder": 0.708,
+   "residual": 0.708,
+   "dea": 0.942
+  },
+  {
+   "build": "hedonic + DEA",
+   "total": 68149,
+   "parts": {
+    "CPU": "Intel Core Ultra 7 265 9500",
+    "GPU": "微星 RTX5070Ti 16G INSPI 31990",
+    "記憶體": "UMAX 單條32GB DDR5-5600/ 9600",
+    "主機板": "華擎 Z890 Pro-A WiFi(ATX 5990",
+    "SSD": "致態 ZhiTai TiPlus7100s  4999",
+    "電源": "振華 LEADEX III 850W 白色  3790",
+    "機殼": "Montech X1 黑 顯卡長30.5/C 1090",
+    "風冷": "利民 Peerless Assassin 1 1190"
+   },
+   "ratio": 0.812,
+   "noUnder": 0.692,
+   "residual": 0.734,
+   "dea": 1.0
+  }
+ ]
+}
