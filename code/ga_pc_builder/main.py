@@ -2,9 +2,10 @@
 
 
 import pandas as pd
-from config import DB_PATH, MATCHED_FILES, ENABLE_WATER_COOLING
+from config import DB_PATH, MATCHED_FILES, ENABLE_WATER_COOLING, DEA_FRONTIER
 from data.catalog import PartCatalog
 from data.sentiment import SentimentScorer
+from data.hedonic import ensure_attached
 from utils.plot_utils import plot_fitness, plot_budget_breakdown
 from advisor.compatibility import CompatibilityChecker
 from core.ga_engine import GARecommender, Build, COOLING_CATS
@@ -208,6 +209,7 @@ def main():
 
     # 載入資料
     catalog = PartCatalog(DB_PATH)
+    ensure_attached(catalog, DEA_FRONTIER)
     scorer  = SentimentScorer(MATCHED_FILES, DB_PATH)
     checker = CompatibilityChecker()
     advisor = UpgradeAdvisor(catalog, scorer, checker)

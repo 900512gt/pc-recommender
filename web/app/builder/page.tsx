@@ -612,6 +612,14 @@ function ResultView({ result }: { result: RecommendResponse }) {
           </span>
           <span className={`text-xs text-text-muted ${MONO}`}>預算使用 {(used * 100).toFixed(1)}%</span>
         </div>
+        {/* CP 值改用成本效率（同品質的最低價格 ÷ 實際價格）後，系統不會為了花完預算而換成
+            較不划算的零件，高預算時可能剩不少錢；照實說明，避免使用者以為是算錯 */}
+        {result.remaining >= result.budget * 0.05 && (
+          <p className="border-t border-border px-4 py-2.5 text-xs leading-relaxed text-text-muted">
+            系統以 CP 值（同樣品質的最低價格 ÷ 實際價格）挑選零件，不會為了花完預算而改選較不划算的零件，
+            因此剩下 {money(result.remaining)}。
+          </p>
+        )}
       </div>
 
       <div>

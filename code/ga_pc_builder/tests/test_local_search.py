@@ -34,6 +34,10 @@ STUCK = {
 
 
 def _ga(budget=40000, **kw):
+    # 「卡住的配置」是在舊的 fitness（價格當效能、CP=效能/花費比例）下找到的局部最佳，
+    # 換成 hedonic + DEA 後地形不同，這組不一定還卡得住，所以這裡固定用舊算法測區域搜尋本身
+    kw.setdefault("perf_basis", "price")
+    kw.setdefault("cp_mode", "ratio")
     global _catalog, _scorer
     if _catalog is None:
         _catalog = PartCatalog(DB_PATH)

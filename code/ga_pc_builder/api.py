@@ -22,13 +22,14 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
-from config import DB_PATH, MATCHED_FILES
+from config import DB_PATH, MATCHED_FILES, DEA_FRONTIER
 from data.catalog import PartCatalog
 from data.sentiment import SentimentScorer
 from advisor.compatibility import CompatibilityChecker
 from advisor.upgrade_advisor import UpgradeAdvisor
 from core.ga_engine import GARecommender
 from core.feasibility import min_budget
+from data.hedonic import ensure_attached
 
 _HERE = Path(__file__).parent
 
@@ -48,6 +49,8 @@ res = _Resources()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     res.catalog = PartCatalog(DB_PATH)
+    # hedonic 品質指數與 DEA 效率只依零件資料而定，啟動時算一次，請求共用（GA 不會再算）
+    ensure_attached(res.catalog, DEA_FRONTIER)
     res.scorer   = SentimentScorer(MATCHED_FILES, DB_PATH)
     res.checker  = CompatibilityChecker()
     res.advisor  = UpgradeAdvisor(res.catalog, res.scorer, res.checker)

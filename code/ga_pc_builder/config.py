@@ -45,6 +45,24 @@ if not ENABLE_WATER_COOLING:
     CAT_MAP.pop("WATER_COOLER", None)
 
 # ─────────────────────────────────────────────
+# 效能與 CP 值的算法（GARecommender 的預設值）
+#
+# PERF_BASIS：沒有跑分的零件用什麼當效能
+#   "hedonic" → hedonic 品質指數（data/hedonic.py：規格換算的價值，品牌、白色、RGB 溢價不算品質）
+#               與散熱器解熱瓦數；規格解釋不了價格的類別（機殼）給中性值，不再「越貴越好」
+#   "price"   → 價格（舊做法）
+# CP_MODE：CP 值的算法
+#   "dea"     → Farrell 成本效率：同品質的最低可能價格 / 實際價格（各類別 BCC 價格—品質前緣），
+#               少花錢本身不加分，只有「同樣的品質花得比較少」才加分
+#   "ratio"   → 效能 / (總價/預算)（舊做法，少花錢 CP 就變高）
+# DEA_FRONTIER："vrs"（BCC 變動規模報酬）或 "fdh"（敏感度分析用）
+# 實驗依據見 results/hedonic_compare_遊戲*.csv 與專案文件「Hedonic與CP_嚴謹版實驗報告」。
+# ─────────────────────────────────────────────
+PERF_BASIS = "hedonic"
+CP_MODE = "dea"
+DEA_FRONTIER = "vrs"
+
+# ─────────────────────────────────────────────
 # 三種用途的 Fitness 權重
 #
 # 效能／口碑／CP值 三項預設等權，不依用途預設「使用者比較重視哪一項」——

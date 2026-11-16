@@ -462,3 +462,15 @@ def attach_efficiency(catalog, frontier: str = "vrs") -> dict:
         summary[cat] = {"output": src, "n": int(ok.sum()), "on_frontier": int((th > 0.999).sum()),
                         "mean_eff": round(float(th.mean()), 3)}
     return summary
+
+
+def ensure_attached(catalog, frontier: str = "vrs", verbose: bool = False) -> None:
+    """GA 用 hedonic 效能或 DEA CP 之前，確保目錄裡的零件已寫入 spec_value / efficiency / quality。
+    每個目錄只算一次（估計要幾秒）；API 在啟動時先呼叫，請求時就不會再算。"""
+    if getattr(catalog, "_hedonic_frontier", None) == frontier:
+        return
+    reports = attach_spec_values(catalog, verbose=verbose)
+    summary = attach_efficiency(catalog, frontier)
+    catalog._hedonic_frontier = frontier
+    catalog.hedonic_reports = reports
+    catalog.efficiency_summary = summary

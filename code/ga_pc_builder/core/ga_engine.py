@@ -5,7 +5,7 @@ import random
 import numpy as np
 from dataclasses import dataclass, field
 
-from config import USAGE_WEIGHTS, CAT_MAP, PREF_TERM_SHARE
+from config import USAGE_WEIGHTS, CAT_MAP, PREF_TERM_SHARE, PERF_BASIS, CP_MODE, DEA_FRONTIER
 from data.catalog import Part, PartCatalog
 from data.sentiment import SentimentScorer, PREF_SHARE
 from policies.ram_policy import pick_ram, ram_score
@@ -80,8 +80,8 @@ class GARecommender:
         allow_16pin_adapter: bool = False,
         local_search_every: int = 30,
         polish: bool = True,
-        perf_basis: str = "price",
-        cp_mode: str = "ratio",
+        perf_basis: str = PERF_BASIS,
+        cp_mode: str = CP_MODE,
     ):
         assert usage in USAGE_WEIGHTS, f"usage 必須是 {list(USAGE_WEIGHTS.keys())}"
         self.catalog     = catalog
@@ -127,6 +127,10 @@ class GARecommender:
             cp_mode = "residual"
         assert cp_mode in ("ratio", "noUnder", "residual", "dea", "mix", "none"), f"未知的 cp_mode：{cp_mode}"
         self.cp_mode     = cp_mode
+        # hedonic 效能與 dea / residual / mix 的 CP 都要先在零件上寫入品質與效率值
+        if perf_basis == "hedonic" or cp_mode in ("dea", "residual", "mix"):
+            from data.hedonic import ensure_attached
+            ensure_attached(catalog, DEA_FRONTIER)
         self.pop_size    = pop_size
         self.generations = generations
         self.elite_k     = elite_k
@@ -616,6 +620,10 @@ class GARecommender:
                 smin, smax = self._spec_range[cat]
                 norm = 1.0 if smax <= smin else (part.specs["quality"] - smin) / (smax - smin)
             elif self.perf_basis == "hedonic":
+                if cat in OPTIONAL_CATS:
+                    # 選配零件（HDD）沒有品質指標：不算進效能。給中性值的話，效能分數偏低的配置
+                    # 加一顆 HDD 就能把平均拉向 0.5，等於花錢買分數
+                    continue
                 # hedonic 驗證不通過的類別（規格無法可靠解釋價格，例如機殼）：不分高低，
                 # 不再退回「越貴越好」
                 norm = 0.5
@@ -680,10 +688,14 @@ class GARecommender:
 
     def _cp_dea(self, build: Build) -> float:
         """Farrell 成本效率（整機）：Σ 各零件「同品質最低可能價格」/ Σ 實際價格 = 以成本占比加權的 θ。
-        沒有效率值的零件（品質指標驗證不通過的類別）不納入。需先呼叫 data.hedonic.attach_efficiency。"""
+        沒有效率值的必選零件（品質指標驗證不通過的類別）不納入；選配零件見下方。需先呼叫 data.hedonic.attach_efficiency。"""
         frontier_cost = paid = 0.0
-        for part in build.parts.values():
+        for cat, part in build.parts.items():
             th = part.specs.get("efficiency")
+            if th is None and cat in OPTIONAL_CATS:
+                # 選配零件沒有品質指標時，同樣的配置可以完全不買它，最低可能價格是 0：
+                # 花在上面的錢不算換到品質（與機殼「無法證明貴的比較好就以最低價為標竿」同理）
+                th = 0.0
             if th is not None and part.price > 0:
                 frontier_cost += th * part.price
                 paid += part.price
