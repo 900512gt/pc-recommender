@@ -99,6 +99,11 @@ class UsageWeights(BaseModel):
     cp:   float = Field(50, ge=0, le=100, description="CP值相對重要程度")
 
 
+# 預算上限：實驗與收斂驗證做的是 3～8 萬，再往上的推薦結果沒有驗證過。
+# 全站每類最貴的零件全選約 22.9 萬，超過那個金額預算本來就沒有意義。
+MAX_BUDGET = 100_000
+
+
 class RecommendRequest(BaseModel):
     # 下限不在這裡寫死：由 recommend() 依目錄算出的 res.min_budget 檢查，錯誤訊息才會一致
     budget: int = Field(..., gt=0, description="Total budget in NT$")
@@ -146,6 +151,11 @@ def recommend(request: Request, req: RecommendRequest):
         raise HTTPException(
             status_code=400,
             detail=f"預算至少需要 NT${res.min_budget:,}（目前組得出相容配置的最低預算），請提高預算",
+        )
+    if req.budget > MAX_BUDGET:
+        raise HTTPException(
+            status_code=400,
+            detail=f"預算最多 NT${MAX_BUDGET:,}（推薦結果只驗證到這個金額），請降低預算",
         )
     ga = GARecommender(
         catalog=res.catalog,

@@ -17,6 +17,8 @@ import {
 import styles from "./preference-slider.module.css";
 
 const MIN_BUDGET = 10000;
+// 與後端 api.py 的 MAX_BUDGET 一致：推薦結果只驗證到這個金額
+const MAX_BUDGET = 100000;
 // 目前只開放遊戲用途：實驗與收斂驗證都只做過遊戲，工作用途低預算時各種子結果不一致。
 // 後端仍保留工作、一般文書的設定，之後驗證完再把用途選單加回來。
 const INITIAL_USAGE: Usage = "遊戲";
@@ -157,6 +159,10 @@ function Builder({ saved }: { saved: SavedState | null }) {
       setError(`預算至少需要 NT$${MIN_BUDGET.toLocaleString()}`);
       return;
     }
+    if (parsedBudget > MAX_BUDGET) {
+      setError(`預算最多 NT$${MAX_BUDGET.toLocaleString()}`);
+      return;
+    }
     setLoading(true);
     setError(null);
     setResult(null);
@@ -204,6 +210,7 @@ function Builder({ saved }: { saved: SavedState | null }) {
                   <input
                     type="number"
                     min={MIN_BUDGET}
+                    max={MAX_BUDGET}
                     step={1000}
                     value={budget}
                     onChange={(e) => setBudget(e.target.value)}
