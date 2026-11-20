@@ -56,7 +56,8 @@ MODEL       = "gpt-5.5"
 MAX_HISTORY = 6
 
 
-def build_messages(user_query: str, history: list[dict], context_text: str) -> list[dict]:
+def build_messages(user_query: str, history: list[dict], context_text: str,
+                   sparse_models: list[tuple[str, str]] | None = None) -> list[dict]:
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
     if context_text:
         messages.append({
@@ -66,11 +67,15 @@ def build_messages(user_query: str, history: list[dict], context_text: str) -> l
     else:
         # 沒有檢索到相關 chunk 時，明確告知 LLM 這個事實並重申免責提醒，
         # 不要只靠它自己記得 SYSTEM_PROMPT 裡那條規則（實測發現常常會忘記加）。
-        messages.append({
-            "role": "system",
-            "content": "本次查詢沒有找到相關的論壇評論資料。請依你的背景知識回答，"
-                       "並在回答中明確告知使用者「以下為一般資訊，非來自論壇評價」。",
-        })
+        note = ("本次查詢沒有找到相關的論壇評論資料。請依你的背景知識回答，"
+                "並在回答中明確告知使用者「以下為一般資訊，非來自論壇評價」。")
+        if sparse_models:
+            # 型號在資料庫裡、只是評論太少。不說清楚的話，LLM 會用背景知識否認型號存在
+            # （實測：AMD R5 5600XT 是 2024 年發售的 CPU，卻被說成「沒有這顆 CPU」）。
+            names = "、".join(f"{m}（{c}）" for m, c in sparse_models)
+            note += (f"\n下列型號確實在本站的零件資料庫中，只是論壇評論太少、無法整理口碑：{names}。"
+                     "請先告訴使用者這個型號的論壇評論不足；不要否認型號存在，也不要猜它是其他產品。")
+        messages.append({"role": "system", "content": note})
     messages.extend(history[-MAX_HISTORY:])
     messages.append({"role": "user", "content": user_query})
     return messages
@@ -96,11 +101,15 @@ def chat_stream(
     max_completion_tokens 預算包含隱藏的推理 token，簡短問題也可能吃掉
     幾百個 token 才開始輸出可見文字，預設值比舊版 gpt-4o 的 800 高很多。
     """
+    sparse_models: list[tuple[str, str]] = []
     if _has_substantive_data(chunks):
         context_text = "\n\n".join(_chunk_to_context(c) for c in chunks)
     else:
         context_text = ""
-    messages = build_messages(user_query, history, context_text)
+        for c in chunks:
+            if (c["model"], c.get("category", "")) not in sparse_models:
+                sparse_models.append((c["model"], c.get("category", "")))
+    messages = build_messages(user_query, history, context_text, sparse_models)
 
     stream = client.chat.completions.create(
         model=MODEL,

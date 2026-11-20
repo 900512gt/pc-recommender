@@ -41,6 +41,11 @@ PTT_FILE   = ROOT / "src/database/input/ptt_comment/relevant.jsonl"
 RAG_CHUNKS_V2        = ROOT / "data/rag_chunks_v2.jsonl"
 DISTILLED_MODELS_V2  = ROOT / "data/distilled_models_v2.jsonl"
 
+# 早於發售日的評論不蒸餾，與口碑分數（bert_train/build_part_sentiment.py）用同一份發售日表。
+# 例：AMD R5 5600XT（2024-10 發售）會配到 2020 年討論 RX 5600 XT 顯示卡的評論。
+sys.path.insert(0, str(ROOT / "src" / "filter"))
+from exclude_prerelease import days_before_release  # noqa: E402
+
 # ── 抽樣參數 ──────────────────────────────────────────────
 MIN_COMMENT_LENGTH = 6    # 評論最短字數（原本 15 太嚴格，會誤刪「線圈音明顯」「溫度很高」這類短但有資訊的評論）
 SAMPLES_PER_LABEL  = 50   # 每個 label × 每個來源最多取幾則
@@ -132,6 +137,8 @@ def group_by_model(records: list[dict]) -> dict[str, dict]:
     """回傳 {model: {category, comments: [...]}}"""
     groups: dict[str, dict] = {}
     for r in records:
+        if days_before_release(r):
+            continue
         model = r["model"]
         if model not in groups:
             groups[model] = {"category": r["category"], "comments": []}
