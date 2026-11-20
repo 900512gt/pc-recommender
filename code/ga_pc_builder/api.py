@@ -155,7 +155,7 @@ def recommend(request: Request, req: RecommendRequest):
     if req.budget > MAX_BUDGET:
         raise HTTPException(
             status_code=400,
-            detail=f"預算最多 NT${MAX_BUDGET:,}（推薦結果只驗證到這個金額），請降低預算",
+            detail=f"預算最多 NT${MAX_BUDGET:,}，請降低預算",
         )
     ga = GARecommender(
         catalog=res.catalog,

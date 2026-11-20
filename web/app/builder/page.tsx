@@ -64,7 +64,6 @@ interface SavedState {
   budget: string;
   usage: Usage;
   weights: PreferenceWeights;
-  allowAdapter: boolean;
   aspectPrefs: AspectPrefs;
   result: RecommendResponse | null;
 }
@@ -123,8 +122,6 @@ function Builder({ saved }: { saved: SavedState | null }) {
   const [weights, setWeights] = useState<PreferenceWeights>(
     () => saved?.weights ?? defaultSliders(INITIAL_USAGE),
   );
-  // 16-pin 顯卡能不能用轉接線接在沒有原生 16-pin 的電源上；預設不允許（後端只推薦有原生接頭的電源）
-  const [allowAdapter, setAllowAdapter] = useState(saved?.allowAdapter ?? false);
   const [selectable, setSelectable] = useState<SelectableAspects[]>([]);
   const [aspectPrefs, setAspectPrefs] = useState<AspectPrefs>(saved?.aspectPrefs ?? {});
   const [loading, setLoading] = useState(false);
@@ -133,13 +130,13 @@ function Builder({ saved }: { saved: SavedState | null }) {
 
   // 設定或結果一改就寫回 sessionStorage
   useEffect(() => {
-    const state: SavedState = { budget, usage, weights, allowAdapter, aspectPrefs, result };
+    const state: SavedState = { budget, usage, weights, aspectPrefs, result };
     try {
       sessionStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     } catch {
       // 寫不進去（無痕模式、容量滿）就算了，只是切頁後不會保留
     }
-  }, [budget, usage, weights, allowAdapter, aspectPrefs, result]);
+  }, [budget, usage, weights, aspectPrefs, result]);
 
   useEffect(() => {
     let cancelled = false;
@@ -173,7 +170,6 @@ function Builder({ saved }: { saved: SavedState | null }) {
         usage,
         // 散熱偏好不開放選擇（水冷已停用，只剩自動／風冷），一律交給 GA 自動決定
         cooling_prefer: "auto",
-        allow_16pin_adapter: allowAdapter,
         // 沒調整過（或三項全是 0）就不送，讓後端完整沿用該用途的預設比重
         ...(isCustomized(usage, weights) && total > 0 ? { weights } : {}),
         ...(Object.keys(aspectPrefs).length > 0 ? { aspect_prefs: aspectPrefs } : {}),
@@ -230,23 +226,6 @@ function Builder({ saved }: { saved: SavedState | null }) {
                 <AspectPicker options={selectable} value={aspectPrefs} onChange={setAspectPrefs} />
               </>
             )}
-
-            <Divider />
-
-            <div className="flex flex-col gap-2">
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={allowAdapter}
-                  onChange={(e) => setAllowAdapter(e.target.checked)}
-                  className="size-4 accent-current"
-                />
-                接受 16-pin 顯卡使用轉接線
-              </label>
-              <Note>
-                不勾選時只推薦有原生 16-pin 接頭的電源。轉接線曾有燒熔案例，廠商建議搭配 ATX 3.x 電源。
-              </Note>
-            </div>
           </div>
 
           <div className="sticky bottom-0 mt-auto border-t border-border bg-bg p-5">
@@ -286,15 +265,6 @@ function FieldLabel({ children }: { children: React.ReactNode }) {
 
 function Divider() {
   return <hr className="border-border" />;
-}
-
-/** Vercel 風格的說明區塊：細邊框、極淺灰底，用來放補充說明，不跟主要控制項搶視線。 */
-function Note({ children }: { children: React.ReactNode }) {
-  return (
-    <p className="rounded-sm border border-border bg-bg-alt px-3 py-2 text-xs leading-relaxed text-text-muted">
-      {children}
-    </p>
-  );
 }
 
 /** 等寬的小標籤：名次、加價、效能變化這類要能並排比較的數字。emphasis 用黑框加粗強調（設計系統不用彩色）。 */
@@ -630,7 +600,6 @@ function ResultView({ result }: { result: RecommendResponse }) {
           </span>
         </div>
 
-        {/* 允許轉接線時，「需使用轉接線」會以不扣分的提醒出現 */}
         {issues.length > 0 && (
           <ul
             className={`mt-3 list-disc rounded-sm border px-4 py-2 pl-8 text-xs leading-relaxed ${
